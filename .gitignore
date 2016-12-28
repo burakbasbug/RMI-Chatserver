@@ -11,5 +11,12 @@ Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
+### Linux ###
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
 ### Eclipse ###
 .settings/
