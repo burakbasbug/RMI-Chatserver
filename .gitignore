@@ -1,0 +1,12 @@
+### macOS ###
+*.DS_Store
+.AppleDouble
+.LSOverride
+
+### Java ###
+*.class
+
+### Windows ###
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
