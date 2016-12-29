@@ -2,11 +2,6 @@ package nameserver;
 
 import java.io.IOException;
 
-/**
- * Please note that this interface is not needed for Lab 1, but will later be
- * used in Lab 2. Hence, you do not have to implement it for the first
- * submission.
- */
 public interface INameserverCli {
 
 	// --- Commands needed for Lab 2 ---
