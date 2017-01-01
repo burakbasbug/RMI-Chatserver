@@ -17,6 +17,14 @@ $RECYCLE.BIN/
 .directory
 .Trash-*
 .nfs*
+*.swp
 
 ### Eclipse ###
 .settings/
+build/
+.project
+
+### project ###
+readme.txt
+build.xml
+
