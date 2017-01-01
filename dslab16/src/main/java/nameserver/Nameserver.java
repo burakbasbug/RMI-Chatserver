@@ -118,7 +118,7 @@ public class Nameserver implements INameserverCli, Runnable {
 		for(Nameserver ns : subNameservers){
 			nss += (c++) + ". " + ns.domain() + (c==subNameservers.size()?"":"\n");
 		}
-		return subNameservers.toString();
+		return nss;
 	}
 
 	@Override
