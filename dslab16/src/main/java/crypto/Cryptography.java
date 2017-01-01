@@ -2,6 +2,7 @@ package crypto;
 
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
@@ -10,6 +11,9 @@ import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 
 import org.bouncycastle.util.encoders.Base64;
+
+import com.sun.scenario.effect.impl.sw.sse.SSEBlend_COLOR_BURNPeer;
+
 
 public class Cryptography {
 	
@@ -105,6 +109,14 @@ public class Cryptography {
 	}
 	
 	
+	public static boolean validateHMAC(Key secretKey, HMAC_ALGORITHM algorithm, String message, byte[] receivedHash, boolean base64){
+		
+		byte[] computedHash = genHMAC(secretKey, algorithm, message);
+		if(base64)
+			computedHash = encodeIntoBase64(computedHash);
+		return MessageDigest.isEqual(computedHash, receivedHash);
+	}
+	
 	
 	//just for testing
 	public static void main(String[] args) {
@@ -113,25 +125,8 @@ public class Cryptography {
 		
 		Key key = genAESSecretKey(256);
 		
-		byte[] keyBytes = key.getEncoded();
-		for(int i = 0; i < keyBytes.length; i++){
-			System.out.print(keyBytes[i]);
-		}
-		System.out.println();
-		
-		byte[] encoded = encodeIntoBase64(key);
-		for(int i = 0; i < encoded.length; i++){
-			System.out.print(encoded[i]);
-		}
-		System.out.println();
-		
-		byte[] decoded = decodeFromBase64(encoded);
-		for(int i = 0; i < decoded.length; i++){
-			System.out.print(decoded[i]);
-		}
-		System.out.println();
-		
-		
+		byte[] hmac = encodeIntoBase64(genHMAC(key, HMAC_ALGORITHM.HmacSHA256, "Hallo!"));
+		System.out.println(validateHMAC(key, HMAC_ALGORITHM.HmacSHA256, "Hallo!", hmac, true));
 	}
 	
 	
