@@ -16,6 +16,7 @@ import chatserver.tcp.TCPListener;
 import chatserver.udp.UDPListener;
 import cli.Command;
 import cli.Shell;
+import crypto.Cryptography;
 import model.User;
 import util.Config;
 
@@ -65,6 +66,7 @@ public class Chatserver implements IChatserverCli, Runnable {
 				}
 			}
 		}
+		Cryptography.init();
 	}
 
 	@Override

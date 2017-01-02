@@ -1,6 +1,7 @@
 package client;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -13,6 +14,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.security.Key;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -23,7 +25,9 @@ import cli.Shell;
 import client.tcp.TCPPrivateMessageListener;
 import client.tcp.TCPResponseReader;
 import client.udp.UDPResponseReader;
+import crypto.Cryptography;
 import util.Config;
+import util.Keys;
 
 public class Client implements IClientCli, Runnable {
 
@@ -46,6 +50,7 @@ public class Client implements IClientCli, Runnable {
 	private StringBuilder lastMsg;
 	private ServerSocket privateServer;
 	private boolean loggedIn, registered;
+	private Key hmacKey;
 
 	/**
 	 * @param componentName
@@ -76,6 +81,13 @@ public class Client implements IClientCli, Runnable {
 		lastMsg = new StringBuilder();
 		loggedIn = false;
 		registered = false;
+		Cryptography.init();
+		
+		try {
+			hmacKey = Keys.readSecretKey(new File(config.getString("hmac.key")));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override
@@ -190,8 +202,16 @@ public class Client implements IClientCli, Runnable {
 		Socket socket = new Socket(InetAddress.getByName(ipPort[0]), Integer.parseInt(ipPort[1]));
 		BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 		PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
-
-		writer.println(this.username + ": " + message);
+		
+		byte[] hmac = Cryptography.genHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, message);
+		hmac = Cryptography.encodeIntoBase64(hmac);
+		
+		String hmacStr = "";
+		for(Byte b : hmac){
+			hmacStr += b;
+		}
+		
+		writer.println(hmacStr + " !msg " + this.username + ": " + message);
 		String response = reader.readLine();
 		if (reader != null) {
 			reader.close();

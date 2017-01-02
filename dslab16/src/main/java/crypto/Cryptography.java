@@ -12,8 +12,6 @@ import javax.crypto.SecretKey;
 
 import org.bouncycastle.util.encoders.Base64;
 
-import com.sun.scenario.effect.impl.sw.sse.SSEBlend_COLOR_BURNPeer;
-
 
 public class Cryptography {
 	
@@ -40,7 +38,7 @@ public class Cryptography {
 		
 		if(init)
 			return;
-		
+	
 		secRand = new SecureRandom();
 		
 		try {
