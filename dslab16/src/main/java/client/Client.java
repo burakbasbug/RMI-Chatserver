@@ -213,6 +213,10 @@ public class Client implements IClientCli, Runnable {
 		
 		writer.println(hmacStr + " !msg " + this.username + ": " + message);
 		String response = reader.readLine();
+		
+		if(response.contains("!tampered"))
+			response = "The message sent to " + username + " has been tampered!";
+		
 		if (reader != null) {
 			reader.close();
 		}
@@ -253,8 +257,7 @@ public class Client implements IClientCli, Runnable {
 				String[] ipPort = privateAddress.split("\\s");
 				privateServer = new ServerSocket(Integer.parseInt(ipPort[1]));
 				registered = true;
-				TCPPrivateMessageListener tcpPMListener = new TCPPrivateMessageListener(
-						privateServer, username, userResponseStream);
+				TCPPrivateMessageListener tcpPMListener = new TCPPrivateMessageListener(privateServer, username, userResponseStream, hmacKey);
 				pool.execute(tcpPMListener);
 			}
 			return response;
