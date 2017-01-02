@@ -203,19 +203,16 @@ public class Client implements IClientCli, Runnable {
 		BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 		PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
 		
-		byte[] hmac = Cryptography.genHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, message);
-		hmac = Cryptography.encodeIntoBase64(hmac);
+		message = Cryptography.genMessageWithHMac(hmacKey, "!msg " + this.username + ": " + message);
 		
-		String hmacStr = "";
-		for(Byte b : hmac){
-			hmacStr += b;
-		}
+		writer.println(message);
 		
-		writer.println(hmacStr + " !msg " + this.username + ": " + message);
 		String response = reader.readLine();
 		
 		if(response.contains("!tampered"))
 			response = "The message sent to " + username + " has been tampered!";
+		
+		
 		
 		if (reader != null) {
 			reader.close();
@@ -228,6 +225,7 @@ public class Client implements IClientCli, Runnable {
 		}
 		return response;
 	}
+	
 
 	@Override
 	@Command

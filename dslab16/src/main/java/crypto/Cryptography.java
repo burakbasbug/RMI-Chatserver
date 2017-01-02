@@ -84,7 +84,7 @@ public class Cryptography {
 	}
 	
 	
-	public static byte[] genHMAC(Key secretKey, HMAC_ALGORITHM algorithm, String message){
+	private static byte[] genHMAC(Key secretKey, HMAC_ALGORITHM algorithm, String message){
 		
 		Mac mac = null;
 		try{
@@ -107,13 +107,42 @@ public class Cryptography {
 	}
 	
 	
-	public static boolean validateHMAC(Key secretKey, HMAC_ALGORITHM algorithm, String message, byte[] receivedHash, boolean base64){
+	private static boolean validateHMAC(Key secretKey, HMAC_ALGORITHM algorithm, String message, byte[] receivedHash, boolean base64){
 		
 		byte[] computedHash = genHMAC(secretKey, algorithm, message);
 		if(base64)
-			computedHash = encodeIntoBase64(computedHash);
+			receivedHash = decodeFromBase64(receivedHash);
 		return MessageDigest.isEqual(computedHash, receivedHash);
 	}
+	
+	
+	public static String genMessageWithHMac(Key hmacKey, String message){
+			
+		byte[] hmac = Cryptography.genHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, message);
+		hmac = Cryptography.encodeIntoBase64(hmac);
+		StringBuilder stringBuilder = new StringBuilder();
+		
+		for(byte b : hmac){
+			stringBuilder.append(b);
+		}
+		return stringBuilder.toString() + " " + message;		
+	}
+	
+	public static boolean checkHMacInMessage(Key hmacKey, String[] privateMsg){
+		
+		StringBuilder stringBuilder = new StringBuilder();
+		
+		byte[] hMac = privateMsg[0].getBytes();
+		
+		for(int i = 1; i < privateMsg.length; i++){
+			stringBuilder.append(privateMsg[i]);
+			if(i<privateMsg.length-1)
+				stringBuilder.append(" ");
+		}
+		return Cryptography.validateHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, stringBuilder.toString(), hMac, true);
+	}
+	
+	
 	
 	
 	//just for testing

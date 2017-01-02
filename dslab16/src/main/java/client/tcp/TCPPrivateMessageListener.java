@@ -41,8 +41,24 @@ public class TCPPrivateMessageListener extends Thread {
 				writer = new PrintWriter(socket.getOutputStream(), true);
 				String privateMsg = reader.readLine();
 				
+				
+				String reply = null;
+
+				StringBuilder stringBuilder = new StringBuilder();
+				String[] privateMsgSplit = privateMsg.split(" ");
+				for(int i = 1; i < privateMsgSplit.length; i++){
+					stringBuilder.append(privateMsgSplit[i]);
+					if(i<privateMsgSplit.length-1)
+						stringBuilder.append(" ");
+				}
 				//check the hmac and get the reply for the sending client.
-				String reply = checkHMac(privateMsg);
+				if(Cryptography.checkHMacInMessage(hmacKey, privateMsg.split(" "))){
+					reply = Cryptography.genMessageWithHMac(hmacKey, username + " replied with !ack.");
+				}else{
+					reply = Cryptography.genMessageWithHMac(hmacKey, "!tampered " + stringBuilder.toString());
+				}
+				
+				userResponseStream.println(stringBuilder.toString());
 				
 				writer.println(reply);
 				
@@ -75,38 +91,5 @@ public class TCPPrivateMessageListener extends Thread {
 			}
 		}
 
-	}
-	
-	/**
-	 * checkHMac checks if the HMAC contained in the message received by the sending client is equal to the HMAC generated in this method.
-	 * The method prints out the message from the sending client, independent from the check.	
-	 * Depending on the result of the check a String is returned containing a reply for the sending client.
-	 * 
-	 * @param privateMsg ..The whole message received by the socket.
-	 * @return the reply to the sending client.
-	 */
-	private String checkHMac(String privateMsg){
-		
-		StringBuilder stringBuilder = new StringBuilder();
-		
-		String[] privateMsgSplit = privateMsg.split(" ");
-		byte[] hMac = privateMsgSplit[0].getBytes();
-		
-		for(int i = 2; i < privateMsgSplit.length; i++){
-			stringBuilder.append(privateMsgSplit[i]);
-			if(i<privateMsgSplit.length-1)
-				stringBuilder.append(" ");
-		}
-		
-		userResponseStream.println(stringBuilder.toString());
-		boolean hmacIsEqual = Cryptography.validateHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, stringBuilder.toString(), hMac, true);
-		
-		if(hmacIsEqual)
-			return username + " replied with !ack.";
-		
-		byte[] newHMac = Cryptography.genHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, stringBuilder.toString());
-		newHMac = Cryptography.encodeIntoBase64(newHMac);
-		return newHMac + " !tampered " + stringBuilder.toString();
-		
 	}
 }
