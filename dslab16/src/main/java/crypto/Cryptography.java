@@ -23,7 +23,7 @@ public class Cryptography {
 	
 	private static KeyGenerator aesKeyGen = null;
 
-	public static  enum HMAC_ALGORITHM {
+	private static  enum HMAC_ALGORITHM {
 									    HmacMD5,
 							   			HmacSHA1,
 							   			HmacSHA256
@@ -55,7 +55,7 @@ public class Cryptography {
 	}
 	
 	
-	public static byte[] genSecureRandomNumber(int size){
+	private static byte[] genSecureRandomNumber(int size){
 		
 		byte[] rand = new byte[size];
 		secRand.nextBytes(rand);
@@ -63,23 +63,23 @@ public class Cryptography {
 	}
 	
 	
-	public static SecretKey genAESSecretKey(int keySize){
+	private static SecretKey genAESSecretKey(int keySize){
 	
 		aesKeyGen.init(keySize);
 		return aesKeyGen.generateKey();
 	}
 	
 	
-	public static byte[] encodeIntoBase64(byte[] toEncode){
+	private static byte[] encodeIntoBase64(byte[] toEncode){
 		return Base64.encode(toEncode);
 	}
 	
 	
-	public static byte[] encodeIntoBase64(Key toEncode){
+	private static byte[] encodeIntoBase64(Key toEncode){
 		return Base64.encode(toEncode.getEncoded());
 	}
 	
-	public static byte[] decodeFromBase64(byte[] toDecode){
+	private static byte[] decodeFromBase64(byte[] toDecode){
 		return  Base64.decode(toDecode);
 	}
 	
@@ -115,7 +115,13 @@ public class Cryptography {
 		return MessageDigest.isEqual(computedHash, receivedHash);
 	}
 	
-	
+	/**
+	 * Returns a String composed of the elements: <HMAC> + " " + <message>.
+	 * The HMAC is generated form the data contained in <message> and gets encoded with Base64. 
+	 * @param hmacKey The shared HMAC Key
+	 * @param message The message to generate a HMAC of.
+	 * @return an HMAC of the message followed by a whitespace and the original message.
+	 */
 	public static String genMessageWithHMac(Key hmacKey, String message){
 			
 		byte[] hmac = Cryptography.genHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, message);
@@ -128,18 +134,19 @@ public class Cryptography {
 		return stringBuilder.toString() + " " + message;		
 	}
 	
-	public static boolean checkHMacInMessage(Key hmacKey, String[] privateMsg){
+	/**
+	 * 
+	 * @param hmacKey The shared HMAC Key.
+	 * @param privateMsg The message to check.
+	 * @return true if the HMAC is equal to the HMAC generated form the message, else false.
+	 */
+	public static boolean checkHMacInMessage(Key hmacKey, String privateMsg){
 		
-		StringBuilder stringBuilder = new StringBuilder();
-		
-		byte[] hMac = privateMsg[0].getBytes();
-		
-		for(int i = 1; i < privateMsg.length; i++){
-			stringBuilder.append(privateMsg[i]);
-			if(i<privateMsg.length-1)
-				stringBuilder.append(" ");
-		}
-		return Cryptography.validateHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, stringBuilder.toString(), hMac, true);
+		byte[] hMac = privateMsg.substring(0, privateMsg.indexOf(" ")).getBytes();
+		//remove HMAC
+		privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
+	
+		return Cryptography.validateHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, privateMsg, hMac, true);
 	}
 	
 	

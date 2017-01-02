@@ -44,22 +44,17 @@ public class TCPPrivateMessageListener extends Thread {
 				
 				String reply = null;
 
-				StringBuilder stringBuilder = new StringBuilder();
-				String[] privateMsgSplit = privateMsg.split(" ");
-				for(int i = 1; i < privateMsgSplit.length; i++){
-					stringBuilder.append(privateMsgSplit[i]);
-					if(i<privateMsgSplit.length-1)
-						stringBuilder.append(" ");
-				}
 				//check the hmac and get the reply for the sending client.
-				if(Cryptography.checkHMacInMessage(hmacKey, privateMsg.split(" "))){
+				if(Cryptography.checkHMacInMessage(hmacKey, privateMsg)){
 					reply = Cryptography.genMessageWithHMac(hmacKey, username + " replied with !ack.");
 				}else{
-					reply = Cryptography.genMessageWithHMac(hmacKey, "!tampered " + stringBuilder.toString());
+					//remove HMAC + !msg
+					privateMsg = privateMsg.substring(privateMsg.indexOf(" ")+1, privateMsg.length());
+					privateMsg = privateMsg.substring(privateMsg.indexOf(" ")+1, privateMsg.length());
+					reply = Cryptography.genMessageWithHMac(hmacKey, "!tampered " + privateMsg);
 				}
 				
-				userResponseStream.println(stringBuilder.toString());
-				
+				userResponseStream.println(privateMsg);
 				writer.println(reply);
 				
 				if (reader != null) {

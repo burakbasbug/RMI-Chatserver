@@ -209,8 +209,12 @@ public class Client implements IClientCli, Runnable {
 		
 		String response = reader.readLine();
 		
-		if(response.contains("!tampered"))
+		if(response.contains("!tampered")){
 			response = "The message sent to " + username + " has been tampered!";
+		}
+		if(!Cryptography.checkHMacInMessage(hmacKey, response)){
+			response += "\nThe confirmation message received from " + username + " has been changed!"; 
+		}
 		
 		
 		
