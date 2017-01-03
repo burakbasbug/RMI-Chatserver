@@ -213,26 +213,20 @@ public class Client implements IClientCli, Runnable {
 		boolean messageTampered = response.contains("!tampered");
 		boolean replyTampered = !Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256, response, true);
 		
-		if(messageTampered || replyTampered){
-			response = "";
-			
-			if(messageTampered){
-				response = "Your message sent to " + username + " has been tampered!";
-			}
-			if(replyTampered){
-				if(messageTampered){
-					response += "\n";
-				}
-				response += "The confirmation message sent from " + username + " has been tampered";
-				if(messageTampered){
-					response += " too";
-				}
-				response += "!";
-			}
-			
-		}else{
-			response = response.substring(response.indexOf(" ") + 1, response.length());
+		response = response.substring(response.indexOf(" ") + 1, response.length());
+		
+		if(messageTampered){
+			response += "\nYour message sent to " + username + " has been tampered!";
 		}
+		if(replyTampered){
+			
+			response += "\nThe confirmation message above sent from " + username + " has been tampered";
+			if(messageTampered){
+				response += " too";
+			}
+			response += "!";
+		}	
+		
 		
 		
 		

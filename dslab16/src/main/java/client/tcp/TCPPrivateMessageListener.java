@@ -45,11 +45,14 @@ public class TCPPrivateMessageListener extends Thread {
 				String reply = null;
 
 				if(Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256, privateMsg, true)){
+					privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
+					privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
 					reply = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256, username + " replied with !ack.");
 				}else{
 					privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
 					privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
 					reply = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256, "!tampered " + privateMsg);
+					privateMsg += "\n<NOTE: This message has been tampered!>";
 				}
 				
 				userResponseStream.println(privateMsg);

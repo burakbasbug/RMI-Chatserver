@@ -14,6 +14,7 @@ import javax.crypto.SecretKey;
 
 import org.bouncycastle.util.encoders.Base64;
 
+import crypto.Cryptography.HMAC_ALGORITHM;
 import util.Keys;
 
 
@@ -149,47 +150,52 @@ public class Cryptography {
 		
 		init();
 		Key key = Keys.readSecretKey(new File("keys/hmac.key"));
-		String message = "Hello there I'm Jonas!";
+		String message = "Hello there I'm Bill!";
 		
-		message = Cryptography.genMessageWithHMac(key, HMAC_ALGORITHM.HmacSHA256, "!msg " + "Jonas" + ": " + message);
+		message = Cryptography.genMessageWithHMac(key, HMAC_ALGORITHM.HmacSHA256, "!msg " + "Bill" + ": " + message);
+		
+		//message = message.replace("l", "");
 		
 		String reply = null;
+
+		if(Cryptography.checkHMacInMessage(key, HMAC_ALGORITHM.HmacSHA256, message, true)){
+			message = message.substring(message.indexOf(" ") + 1, message.length());
+			message = message.substring(message.indexOf(" ") + 1, message.length());
+			reply = Cryptography.genMessageWithHMac(key, HMAC_ALGORITHM.HmacSHA256, "Bill.de" + " replied with !ack.");
+			
+			//reply = reply.replace("a", "");
 		
-		if(Cryptography.checkHMacInMessage(key, Cryptography.HMAC_ALGORITHM.HmacSHA256, message, true)){
-			reply = Cryptography.genMessageWithHMac(key, HMAC_ALGORITHM.HmacSHA256, "Jonas" + " replied with !ack.");
 		}else{
 			message = message.substring(message.indexOf(" ") + 1, message.length());
 			message = message.substring(message.indexOf(" ") + 1, message.length());
 			reply = Cryptography.genMessageWithHMac(key, HMAC_ALGORITHM.HmacSHA256, "!tampered " + message);
+			
+			//reply = reply.replace("i", "");
+			
+			message += "\n<NOTE: This message has been tampered!>";
 		}
 				
+		
+
 		boolean messageTampered = reply.contains("!tampered");
-		boolean replyTampered = !Cryptography.checkHMacInMessage(key, Cryptography.HMAC_ALGORITHM.HmacSHA256, reply, true);
+		boolean replyTampered = !Cryptography.checkHMacInMessage(key, HMAC_ALGORITHM.HmacSHA256, reply, true);
+	
+		reply = reply.substring(reply.indexOf(" ") + 1, reply.length());
 		
-		
-		if(messageTampered || replyTampered){
-			reply = "";
-			
-			if(messageTampered){
-				reply = "Your message sent to " + "Jonas" + " has been tampered!";
-			}
-			if(replyTampered){
-				if(messageTampered){
-					reply += "\n";
-				}
-				reply += "The confirmation message sent from " + "Jonas" + " has been tampered";
-				if(messageTampered){
-					reply += " too";
-				}
-				reply += "!";
-			}
-			
-		}else{
-			reply = reply.substring(reply.indexOf(" ") + 1, reply.length());
+		if(messageTampered){
+			reply += "\nYour message sent to " + "Bill.de" + " has been tampered!";
 		}
+		if(replyTampered){
+			
+			reply += "\nThe confirmation message above sent from " + "Bill.de" + " has been tampered";
+			if(messageTampered){
+				reply += " too";
+			}
+			reply += "!";
+		}	
 		
-		
-		System.out.println(reply);
+		System.out.println("Message: " + message);
+		System.out.println("Reply: " + reply);
 	}
 	
 	
