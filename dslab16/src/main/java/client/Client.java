@@ -14,6 +14,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.security.CryptoPrimitive;
 import java.security.Key;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -209,11 +210,12 @@ public class Client implements IClientCli, Runnable {
 		
 		String response = reader.readLine();
 		
+		
 		if(response.contains("!tampered")){
-			response = "The message sent to " + username + " has been tampered!";
-		}
-		if(!Cryptography.checkHMacInMessage(hmacKey, response)){
-			response += "\nThe confirmation message received from " + username + " has been changed!"; 
+			if(Cryptography.checkHMacInMessage(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, response, true)){
+				response = "The confirmation message received from " + username + " has been changed!";
+			}
+			response = "Your message sent to " + username + " has been tampered!\n" + response;
 		}
 		
 		

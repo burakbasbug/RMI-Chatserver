@@ -45,7 +45,7 @@ public class TCPPrivateMessageListener extends Thread {
 				String reply = null;
 
 				//check the hmac and get the reply for the sending client.
-				if(Cryptography.checkHMacInMessage(hmacKey, privateMsg)){
+				if(Cryptography.checkHMacInMessage(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, privateMsg, true)){
 					reply = Cryptography.genMessageWithHMac(hmacKey, username + " replied with !ack.");
 				}else{
 					//remove HMAC + !msg

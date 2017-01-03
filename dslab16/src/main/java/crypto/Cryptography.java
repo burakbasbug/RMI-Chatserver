@@ -1,5 +1,7 @@
 package crypto;
 
+import java.io.File;
+import java.io.IOException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.MessageDigest;
@@ -12,6 +14,8 @@ import javax.crypto.SecretKey;
 
 import org.bouncycastle.util.encoders.Base64;
 
+import util.Keys;
+
 
 public class Cryptography {
 	
@@ -23,7 +27,7 @@ public class Cryptography {
 	
 	private static KeyGenerator aesKeyGen = null;
 
-	private static  enum HMAC_ALGORITHM {
+	public static  enum HMAC_ALGORITHM {
 									    HmacMD5,
 							   			HmacSHA1,
 							   			HmacSHA256
@@ -110,8 +114,9 @@ public class Cryptography {
 	private static boolean validateHMAC(Key secretKey, HMAC_ALGORITHM algorithm, String message, byte[] receivedHash, boolean base64){
 		
 		byte[] computedHash = genHMAC(secretKey, algorithm, message);
-		if(base64)
+		if(base64){
 			receivedHash = decodeFromBase64(receivedHash);
+		}
 		return MessageDigest.isEqual(computedHash, receivedHash);
 	}
 	
@@ -140,27 +145,54 @@ public class Cryptography {
 	 * @param privateMsg The message to check.
 	 * @return true if the HMAC is equal to the HMAC generated form the message, else false.
 	 */
-	public static boolean checkHMacInMessage(Key hmacKey, String privateMsg){
+	public static boolean checkHMacInMessage(Key hmacKey, Cryptography.HMAC_ALGORITHM algorithm, String privateMsg, boolean base64){
 		
-		byte[] hMac = privateMsg.substring(0, privateMsg.indexOf(" ")).getBytes();
+		byte[] receivedHash = privateMsg.substring(0, privateMsg.indexOf(" ")).getBytes();
 		//remove HMAC
+		
 		privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
-	
-		return Cryptography.validateHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, privateMsg, hMac, true);
+				
+		privateMsg = genMessageWithHMac(hmacKey, privateMsg);
+		byte[] computedHash = privateMsg.substring(0, privateMsg.indexOf(" ")).getBytes();
+		computedHash = Base64.decode(computedHash);
+		
+		if(base64){
+			receivedHash = decodeFromBase64(receivedHash);
+		}
+		return MessageDigest.isEqual(computedHash, receivedHash);
 	}
 	
 	
 	
 	
 	//just for testing
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException {
 		
 		init();
+		Key key = Keys.readSecretKey(new File("keys/hmac.key"));
+		String message = "!msg " + "Jonas" + ": " + "Hello there I'm Jonas!";
 		
-		Key key = genAESSecretKey(256);
+		message = Cryptography.genMessageWithHMac(key, message);
+	
+		String reply = null;
+		if(Cryptography.checkHMacInMessage(key, HMAC_ALGORITHM.HmacSHA256, message, true)){
+			reply = Cryptography.genMessageWithHMac(key, "Jonas" + " replied with !ack.");
+		}else{
+			//remove HMAC + !msg
+			message = message.substring(message.indexOf(" ")+1, message.length());
+			message = message.substring(message.indexOf(" ")+1, message.length());
+			reply = Cryptography.genMessageWithHMac(key, "!tampered " + message);
+		}
 		
-		byte[] hmac = encodeIntoBase64(genHMAC(key, HMAC_ALGORITHM.HmacSHA256, "Hallo!"));
-		System.out.println(validateHMAC(key, HMAC_ALGORITHM.HmacSHA256, "Hallo!", hmac, true));
+		if(!Cryptography.checkHMacInMessage(key, HMAC_ALGORITHM.HmacSHA256, reply, true)){
+			reply += "\nThe confirmation message received from " + "Jonas" + " has been changed!"; 
+		}
+		if(reply.contains("!tampered")){
+			reply = "The message sent to " + "Jonas" + " has been tampered!";
+		}
+		
+		System.out.println(reply);
+		
 	}
 	
 	
