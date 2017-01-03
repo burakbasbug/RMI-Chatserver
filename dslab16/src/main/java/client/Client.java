@@ -27,6 +27,7 @@ import client.tcp.TCPPrivateMessageListener;
 import client.tcp.TCPResponseReader;
 import client.udp.UDPResponseReader;
 import crypto.Cryptography;
+import crypto.Cryptography.HMAC_ALGORITHM;
 import util.Config;
 import util.Keys;
 
@@ -102,8 +103,7 @@ public class Client implements IClientCli, Runnable {
 			serverReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			serverWriter = new PrintWriter(socket.getOutputStream(), true);
 
-			TCPResponseReader tcpReader = new TCPResponseReader(serverReader, userResponseStream,
-					loginQueue, logoutQueue, registerQueue, lookupQueue, lastMsg);
+			TCPResponseReader tcpReader = new TCPResponseReader(serverReader, userResponseStream, loginQueue, logoutQueue, registerQueue, lookupQueue, lastMsg);
 			pool.execute(tcpReader);
 		} catch (UnknownHostException e) {
 			System.err.println("IP address of the host could not be determined: " + e.getMessage());
@@ -204,18 +204,34 @@ public class Client implements IClientCli, Runnable {
 		BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 		PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
 		
-		message = Cryptography.genMessageWithHMac(hmacKey, "!msg " + this.username + ": " + message);
+		message = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256, "!msg " + this.username + ": " + message);
 		
 		writer.println(message);
 		
 		String response = reader.readLine();
+
+		boolean messageTampered = response.contains("!tampered");
+		boolean replyTampered = !Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256, response, true);
 		
-		
-		if(response.contains("!tampered")){
-			if(Cryptography.checkHMacInMessage(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, response, true)){
-				response = "The confirmation message received from " + username + " has been changed!";
+		if(messageTampered || replyTampered){
+			response = "";
+			
+			if(messageTampered){
+				response = "Your message sent to " + username + " has been tampered!";
 			}
-			response = "Your message sent to " + username + " has been tampered!\n" + response;
+			if(replyTampered){
+				if(messageTampered){
+					response += "\n";
+				}
+				response += "The confirmation message sent from " + username + " has been tampered";
+				if(messageTampered){
+					response += " too";
+				}
+				response += "!";
+			}
+			
+		}else{
+			response = response.substring(response.indexOf(" ") + 1, response.length());
 		}
 		
 		

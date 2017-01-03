@@ -11,6 +11,7 @@ import java.net.SocketException;
 import java.security.Key;
 
 import crypto.Cryptography;
+import crypto.Cryptography.HMAC_ALGORITHM;
 
 public class TCPPrivateMessageListener extends Thread {
 
@@ -39,19 +40,16 @@ public class TCPPrivateMessageListener extends Thread {
 				socket = serverSocket.accept();
 				reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 				writer = new PrintWriter(socket.getOutputStream(), true);
+				
 				String privateMsg = reader.readLine();
-				
-				
 				String reply = null;
 
-				//check the hmac and get the reply for the sending client.
-				if(Cryptography.checkHMacInMessage(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, privateMsg, true)){
-					reply = Cryptography.genMessageWithHMac(hmacKey, username + " replied with !ack.");
+				if(Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256, privateMsg, true)){
+					reply = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256, username + " replied with !ack.");
 				}else{
-					//remove HMAC + !msg
-					privateMsg = privateMsg.substring(privateMsg.indexOf(" ")+1, privateMsg.length());
-					privateMsg = privateMsg.substring(privateMsg.indexOf(" ")+1, privateMsg.length());
-					reply = Cryptography.genMessageWithHMac(hmacKey, "!tampered " + privateMsg);
+					privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
+					privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
+					reply = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256, "!tampered " + privateMsg);
 				}
 				
 				userResponseStream.println(privateMsg);

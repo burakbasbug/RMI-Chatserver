@@ -88,18 +88,18 @@ public class Cryptography {
 	}
 	
 	
-	private static byte[] genHMAC(Key secretKey, HMAC_ALGORITHM algorithm, String message){
+	private static byte[] genHMAC(Key key, HMAC_ALGORITHM algorithm, String message){
 		
 		Mac mac = null;
 		try{
 			if(algorithm.equals(HMAC_ALGORITHM.HmacMD5)){
-				macMD5.init(secretKey);
+				macMD5.init(key);
 				mac = macMD5;
 			}else if(algorithm.equals(HMAC_ALGORITHM.HmacSHA1)){
-				macSHA1.init(secretKey);
+				macSHA1.init(key);
 				mac = macSHA1;
 			}else if(algorithm.equals(HMAC_ALGORITHM.HmacSHA256)){
-				macSHA256.init(secretKey);
+				macSHA256.init(key);
 				mac = macSHA256;
 			}
 		}catch (InvalidKeyException e) {
@@ -111,25 +111,9 @@ public class Cryptography {
 	}
 	
 	
-	private static boolean validateHMAC(Key secretKey, HMAC_ALGORITHM algorithm, String message, byte[] receivedHash, boolean base64){
-		
-		byte[] computedHash = genHMAC(secretKey, algorithm, message);
-		if(base64){
-			receivedHash = decodeFromBase64(receivedHash);
-		}
-		return MessageDigest.isEqual(computedHash, receivedHash);
-	}
-	
-	/**
-	 * Returns a String composed of the elements: <HMAC> + " " + <message>.
-	 * The HMAC is generated form the data contained in <message> and gets encoded with Base64. 
-	 * @param hmacKey The shared HMAC Key
-	 * @param message The message to generate a HMAC of.
-	 * @return an HMAC of the message followed by a whitespace and the original message.
-	 */
-	public static String genMessageWithHMac(Key hmacKey, String message){
+	public static String genMessageWithHMac(Key key, HMAC_ALGORITHM algorithm, String message){
 			
-		byte[] hmac = Cryptography.genHMAC(hmacKey, Cryptography.HMAC_ALGORITHM.HmacSHA256, message);
+		byte[] hmac = Cryptography.genHMAC(key, algorithm, message);
 		hmac = Cryptography.encodeIntoBase64(hmac);
 		StringBuilder stringBuilder = new StringBuilder();
 		
@@ -139,20 +123,15 @@ public class Cryptography {
 		return stringBuilder.toString() + " " + message;		
 	}
 	
-	/**
-	 * 
-	 * @param hmacKey The shared HMAC Key.
-	 * @param privateMsg The message to check.
-	 * @return true if the HMAC is equal to the HMAC generated form the message, else false.
-	 */
-	public static boolean checkHMacInMessage(Key hmacKey, Cryptography.HMAC_ALGORITHM algorithm, String privateMsg, boolean base64){
+	
+	public static boolean checkHMacInMessage(Key key, HMAC_ALGORITHM algorithm, String privateMsg, boolean base64){
 		
 		byte[] receivedHash = privateMsg.substring(0, privateMsg.indexOf(" ")).getBytes();
 		//remove HMAC
 		
 		privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
 				
-		privateMsg = genMessageWithHMac(hmacKey, privateMsg);
+		privateMsg = genMessageWithHMac(key, algorithm, privateMsg);
 		byte[] computedHash = privateMsg.substring(0, privateMsg.indexOf(" ")).getBytes();
 		computedHash = Base64.decode(computedHash);
 		
@@ -170,29 +149,47 @@ public class Cryptography {
 		
 		init();
 		Key key = Keys.readSecretKey(new File("keys/hmac.key"));
-		String message = "!msg " + "Jonas" + ": " + "Hello there I'm Jonas!";
+		String message = "Hello there I'm Jonas!";
 		
-		message = Cryptography.genMessageWithHMac(key, message);
-	
+		message = Cryptography.genMessageWithHMac(key, HMAC_ALGORITHM.HmacSHA256, "!msg " + "Jonas" + ": " + message);
+		
 		String reply = null;
-		if(Cryptography.checkHMacInMessage(key, HMAC_ALGORITHM.HmacSHA256, message, true)){
-			reply = Cryptography.genMessageWithHMac(key, "Jonas" + " replied with !ack.");
+		
+		if(Cryptography.checkHMacInMessage(key, Cryptography.HMAC_ALGORITHM.HmacSHA256, message, true)){
+			reply = Cryptography.genMessageWithHMac(key, HMAC_ALGORITHM.HmacSHA256, "Jonas" + " replied with !ack.");
 		}else{
-			//remove HMAC + !msg
-			message = message.substring(message.indexOf(" ")+1, message.length());
-			message = message.substring(message.indexOf(" ")+1, message.length());
-			reply = Cryptography.genMessageWithHMac(key, "!tampered " + message);
+			message = message.substring(message.indexOf(" ") + 1, message.length());
+			message = message.substring(message.indexOf(" ") + 1, message.length());
+			reply = Cryptography.genMessageWithHMac(key, HMAC_ALGORITHM.HmacSHA256, "!tampered " + message);
+		}
+				
+		boolean messageTampered = reply.contains("!tampered");
+		boolean replyTampered = !Cryptography.checkHMacInMessage(key, Cryptography.HMAC_ALGORITHM.HmacSHA256, reply, true);
+		
+		
+		if(messageTampered || replyTampered){
+			reply = "";
+			
+			if(messageTampered){
+				reply = "Your message sent to " + "Jonas" + " has been tampered!";
+			}
+			if(replyTampered){
+				if(messageTampered){
+					reply += "\n";
+				}
+				reply += "The confirmation message sent from " + "Jonas" + " has been tampered";
+				if(messageTampered){
+					reply += " too";
+				}
+				reply += "!";
+			}
+			
+		}else{
+			reply = reply.substring(reply.indexOf(" ") + 1, reply.length());
 		}
 		
-		if(!Cryptography.checkHMacInMessage(key, HMAC_ALGORITHM.HmacSHA256, reply, true)){
-			reply += "\nThe confirmation message received from " + "Jonas" + " has been changed!"; 
-		}
-		if(reply.contains("!tampered")){
-			reply = "The message sent to " + "Jonas" + " has been tampered!";
-		}
 		
 		System.out.println(reply);
-		
 	}
 	
 	
