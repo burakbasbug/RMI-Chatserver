@@ -144,8 +144,8 @@ public class Cryptography {
 	
 	
 	
-	
-	//just for testing
+	/**
+	//just for testing, please do not remove
 	public static void main(String[] args) throws IOException {
 		
 		init();
@@ -182,16 +182,15 @@ public class Cryptography {
 	
 		reply = reply.substring(reply.indexOf(" ") + 1, reply.length());
 		
+		if(replyTampered){	
+			reply += "\n<NOTE: This comfirmation message sent from " + "Bill.de" + " has been tampered!>";
+		}	
 		if(messageTampered){
-			reply += "\nYour message sent to " + "Bill.de" + " has been tampered!";
-		}
-		if(replyTampered){
-			
-			reply += "\nThe confirmation message above sent from " + "Bill.de" + " has been tampered";
-			if(messageTampered){
+			reply += "\n<NOTE: Your message sent to " + "Bill.de" + " has been tampered";
+			if(replyTampered){
 				reply += " too";
 			}
-			reply += "!";
+			reply += "!>";
 		}	
 		
 		System.out.println("Message: " + message);
@@ -199,6 +198,6 @@ public class Cryptography {
 	}
 	
 	
-	
+	*/
 	
 }

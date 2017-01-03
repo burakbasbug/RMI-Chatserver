@@ -215,17 +215,16 @@ public class Client implements IClientCli, Runnable {
 		
 		response = response.substring(response.indexOf(" ") + 1, response.length());
 		
+		if(replyTampered){	
+			response += "\n<NOTE: This comfirmation message sent from " + username + " has been tampered!>";
+		}	
 		if(messageTampered){
-			response += "\nYour message sent to " + username + " has been tampered!";
-		}
-		if(replyTampered){
-			
-			response += "\nThe confirmation message above sent from " + username + " has been tampered";
-			if(messageTampered){
+			response += "\n<NOTE: Your message sent to " + username + " has been tampered";
+			if(replyTampered){
 				response += " too";
 			}
-			response += "!";
-		}	
+			response += "!>";
+		}
 		
 		
 		
