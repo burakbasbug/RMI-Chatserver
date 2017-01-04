@@ -1,37 +1,51 @@
 package chatserver.tcp;
 
-import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.Socket;
+import java.io.PrintStream;
 import java.net.SocketException;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import org.bouncycastle.util.encoders.Base64;
+
+import channels.AESChannel;
+import channels.Channel;
 import model.User;
+import util.Config;
+import util.Keys;
 
 public class TCPConnection extends Thread {
 
-	private Socket socket;
+	private Channel tcpChannel;
+	private Channel rsaChannel;
+	private Channel aesChannel;
 	private List<TCPConnection> allConnections;
 	private Map<String, User> userMap;
 	private User user;
 	private String ipPort;
-	private BufferedReader reader;
-	private PrintWriter writer;
+	private Config config;
+	private PrintStream userResponseStream;
 
-	public TCPConnection(Socket socket, List<TCPConnection> allConnections,
-			Map<String, User> userMap) {
-		this.socket = socket;
+	public TCPConnection(Channel tcpChannel, List<TCPConnection> allConnections,
+			Map<String, User> userMap, PrintStream userResponseStream) {
+		this.tcpChannel = tcpChannel;
+		this.rsaChannel = tcpChannel;
 		this.allConnections = allConnections;
 		this.userMap = userMap;
+		this.userResponseStream = userResponseStream;
 		this.user = null;
 		this.ipPort = null;
+		this.config = new Config("chatserver");
 	}
 
-	public Socket getSocket() {
-		return socket;
+	public Channel getTcpChannel() {
+		return tcpChannel;
 	}
 
 	public User getUser() {
@@ -45,25 +59,27 @@ public class TCPConnection extends Thread {
 	@Override
 	public void run() {
 		try {
-			reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-			writer = new PrintWriter(socket.getOutputStream(), true);
-
 			String request;
-			while (!socket.isClosed() && (request = reader.readLine()) != null) {
+			while (!tcpChannel.getSocket().isClosed()
+					&& (request = new String(tcpChannel.recv())) != null) {
+				// System.out.println("tcpconnection while: " +
+				// tcpChannel.getClass());
 				if (request.startsWith("!login")) {
-					writer.println(login(request));
+					tcpChannel.send(login(request));
 				} else if (request.startsWith("!logout")) {
-					writer.println(logout());
+					tcpChannel.send(logout());
 				} else if (request.startsWith("!send")) {
 					send(request);
 				} else if (request.startsWith("!register")) {
-					writer.println(register(request));
+					tcpChannel.send(register(request));
 				} else if (request.startsWith("!lookup")) {
-					writer.println(lookup(request));
+					tcpChannel.send(lookup(request));
+				} else if (request.startsWith("!authenticate")) {
+					authenticate(request);
 				} else if (request.startsWith("!exit")) {
 					exit();
 				} else {
-					writer.println("Error: Unknown request.");
+					tcpChannel.send("Error: Unknown request.");
 				}
 			}
 		} catch (SocketException e) {
@@ -108,32 +124,27 @@ public class TCPConnection extends Thread {
 			user = null;
 		}
 		ipPort = null;
+		tcpChannel = rsaChannel;
 		return "!logout" + "Successfully logged out.";
 	}
 
 	public void send(String request) {
-		PrintWriter publicWriter = null;
 		if (user == null) {
-			writer.println("!failedpublic" + "Not logged in.");
+			tcpChannel.send("!failedpublic" + "Not logged in.");
 			return;
 		}
-		try {
-			synchronized (allConnections) {
-				for (TCPConnection conn : allConnections) {
-					if (conn.getUser() != null) {
-						if (conn.getSocket() != socket) {
-							publicWriter = new PrintWriter(conn.getSocket().getOutputStream(),
-									true);
-							publicWriter.println(
-									"!public" + user.getName() + ": " + request.substring(6));
-						} else {
-							writer.println("!successpublic" + "Public message successfully sent.");
-						}
+		synchronized (allConnections) {
+			for (TCPConnection conn : allConnections) {
+				if (conn.getUser() != null) {
+					if (!(conn.getTcpChannel().getDecoratedChannel()
+							.equals(tcpChannel.getDecoratedChannel()))) {
+						conn.getTcpChannel()
+								.send("!public" + user.getName() + ": " + request.substring(6));
+					} else {
+						tcpChannel.send("!successpublic" + "Public message successfully sent.");
 					}
 				}
 			}
-		} catch (IOException e) {
-			System.err.println("Error occurred while communicating with client: " + e.getMessage());
 		}
 	}
 
@@ -169,18 +180,79 @@ public class TCPConnection extends Thread {
 		return "!lookup" + "Wrong username or user not registered.";
 	}
 
+	private void authenticate(String firstMessage) {
+		// System.out.println("called auth: \n" + firstMessage);
+		String[] parts = firstMessage.split("\\s");
+		String username = parts[1];
+
+		// generates 32 byte secure random number
+		SecureRandom secureRandom = new SecureRandom();
+		final byte[] chatserverChallenge = new byte[32];
+		secureRandom.nextBytes(chatserverChallenge);
+
+		try {
+			// generate 256 bit secret key
+			KeyGenerator generator = KeyGenerator.getInstance("AES");
+			generator.init(256);
+			SecretKey secretKey = generator.generateKey();
+
+			// generate 16 byte ivParameter
+			final byte[] ivParameter = new byte[16];
+			secureRandom.nextBytes(ivParameter);
+
+			// base64 encode all arguments
+			byte[] encodedChatserverChallenge = Base64.encode(chatserverChallenge);
+			byte[] encodedSecretKey = Base64.encode(secretKey.getEncoded());
+			byte[] encodedIvParameter = Base64.encode(ivParameter);
+
+			String secondMessage = "!ok " + parts[2] + " " + new String(encodedChatserverChallenge)
+					+ " " + new String(encodedSecretKey) + " " + new String(encodedIvParameter);
+			// System.out.println("finishedsecondmessage: " + secondMessage);
+
+			String clientPublicKeyPath = config.getString("keys.dir") + "/" + username + ".pub.pem";
+			PublicKey clientPublicKey = Keys.readPublicPEM(new File(clientPublicKeyPath));
+			tcpChannel.setOppositeKey(clientPublicKey);
+			tcpChannel.send(secondMessage);
+
+			// AES channel
+			aesChannel = new AESChannel(tcpChannel.getDecoratedChannel(), ivParameter,
+					secretKey.getEncoded());
+			tcpChannel = aesChannel;
+			byte[] thirdMessage = tcpChannel.recv();
+
+			// check server challenges
+			// System.out.println("decryptedThirdMessage: " + new
+			// String(thirdMessage));
+			if (!new String(thirdMessage).equals(new String(encodedChatserverChallenge))) {
+				userResponseStream
+						.println("Server-challenges do not match. Closing the connection.");
+				return;
+			}
+			synchronized (userMap) {
+				if (userMap.containsKey(username)) {
+					if (!userMap.get(parts[1]).isLoggedIn()) {
+						this.user = userMap.get(parts[1]);
+						this.user.setLoggedIn(true);
+						userResponseStream.println("Client connected");
+						// return "!login" + "Successfully logged in.";
+					} else {
+						// return "!login" + "Already logged in.";
+					}
+				} else {
+					// return "!login" + "Wrong username or password.";
+				}
+			}
+		} catch (NoSuchAlgorithmException e) {
+			System.err.println(e.getMessage());
+		} catch (IOException e) {
+			System.err.println(e.getMessage());
+		}
+	}
+
 	public void exit() {
 		try {
 			allConnections.remove(this);
-			if (reader != null) {
-				reader.close();
-			}
-			if (writer != null) {
-				writer.close();
-			}
-			if (socket != null && !socket.isClosed()) {
-				socket.close();
-			}
+			tcpChannel.close();
 		} catch (IOException e) {
 			System.err.println(
 					"Error occurred while closing client communication: " + e.getMessage());

@@ -75,7 +75,7 @@ public class Chatserver implements IChatserverCli, Runnable {
 
 		try {
 			serverSocket = new ServerSocket(config.getInt("tcp.port"));
-			TCPListener tcpListener = new TCPListener(serverSocket, pool, userMap);
+			TCPListener tcpListener = new TCPListener(serverSocket, pool, userMap, userResponseStream);
 			pool.execute(tcpListener);
 		} catch (IOException e) {
 			throw new RuntimeException("Cannot listen on TCP port.", e);

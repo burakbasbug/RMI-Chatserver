@@ -2,6 +2,7 @@ package client;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -14,13 +15,22 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.security.CryptoPrimitive;
 import java.security.Key;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+
+import org.bouncycastle.util.encoders.Base64;
+
+import channels.AESChannel;
+import channels.Channel;
+import channels.RSAChannel;
+import channels.TCPChannel;
 import cli.Command;
 import cli.Shell;
 import client.tcp.TCPPrivateMessageListener;
@@ -37,10 +47,11 @@ public class Client implements IClientCli, Runnable {
 	private Config config;
 	private InputStream userRequestStream;
 	private PrintStream userResponseStream;
+	private TCPResponseReader tcpReader;
 
-	private Socket socket;
-	private BufferedReader serverReader;
-	private PrintWriter serverWriter;
+	private Channel tcpChannel;
+	private Channel rsaChannel;
+	private Channel aesChannel;
 	private Shell shell;
 	private ExecutorService pool;
 	private BlockingQueue<String> loginQueue;
@@ -84,7 +95,7 @@ public class Client implements IClientCli, Runnable {
 		loggedIn = false;
 		registered = false;
 		Cryptography.init();
-		
+
 		try {
 			hmacKey = Keys.readSecretKey(new File(config.getString("hmac.key")));
 		} catch (IOException e) {
@@ -98,13 +109,10 @@ public class Client implements IClientCli, Runnable {
 		System.out.println("Client up and waiting for commands!");
 
 		try {
-			socket = new Socket(config.getString("chatserver.host"),
+			Socket socket = new Socket(config.getString("chatserver.host"),
 					config.getInt("chatserver.tcp.port"));
-			serverReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-			serverWriter = new PrintWriter(socket.getOutputStream(), true);
-
-			TCPResponseReader tcpReader = new TCPResponseReader(serverReader, userResponseStream, loginQueue, logoutQueue, registerQueue, lookupQueue, lastMsg);
-			pool.execute(tcpReader);
+			rsaChannel = new RSAChannel(new TCPChannel(socket), null);
+			tcpChannel = rsaChannel;
 		} catch (UnknownHostException e) {
 			System.err.println("IP address of the host could not be determined: " + e.getMessage());
 		} catch (IOException e) {
@@ -116,7 +124,7 @@ public class Client implements IClientCli, Runnable {
 	@Command
 	public String login(String username, String password) throws IOException {
 		String input = "!login " + username + " " + password;
-		serverWriter.println(input);
+		tcpChannel.send(input);
 		try {
 			String response = loginQueue.take();
 			if (response.startsWith("Successfully")) {
@@ -133,8 +141,10 @@ public class Client implements IClientCli, Runnable {
 	@Override
 	@Command
 	public String logout() throws IOException {
+		if (!loggedIn)
+			return "Not logged in.";
 		String input = "!logout";
-		serverWriter.println(input);
+		tcpChannel.send(input);
 		try {
 			username = null;
 			loggedIn = false;
@@ -142,7 +152,9 @@ public class Client implements IClientCli, Runnable {
 			if (privateServer != null) {
 				privateServer.close();
 			}
-			return logoutQueue.poll(5, TimeUnit.SECONDS);
+			String response = logoutQueue.poll(5, TimeUnit.SECONDS);
+			tcpChannel = rsaChannel;
+			return response;
 		} catch (InterruptedException e) {
 			System.err.println("Interrupted while waiting: " + e.getMessage());
 		}
@@ -152,8 +164,10 @@ public class Client implements IClientCli, Runnable {
 	@Override
 	@Command
 	public String send(String message) throws IOException {
+		if (!loggedIn)
+			return "Not logged in.";
 		String input = "!send " + message;
-		serverWriter.println(input);
+		tcpChannel.send(input);
 		return null;
 	}
 
@@ -191,6 +205,8 @@ public class Client implements IClientCli, Runnable {
 	@Override
 	@Command
 	public String msg(String username, String message) throws IOException {
+		if (!loggedIn)
+			return "Not logged in.";
 		String address = lookup(username);
 		if (address.contains("Not logged in")) {
 			return "Not logged in. -OR- Wrong username or user not reachable.";
@@ -203,32 +219,32 @@ public class Client implements IClientCli, Runnable {
 		Socket socket = new Socket(InetAddress.getByName(ipPort[0]), Integer.parseInt(ipPort[1]));
 		BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 		PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
-		
-		message = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256, "!msg " + this.username + ": " + message);
-		
+
+		message = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256,
+				"!msg " + this.username + ": " + message);
+
 		writer.println(message);
-		
+
 		String response = reader.readLine();
 
 		boolean messageTampered = response.contains("!tampered");
-		boolean replyTampered = !Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256, response, true);
-		
+		boolean replyTampered = !Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256,
+				response, true);
+
 		response = response.substring(response.indexOf(" ") + 1, response.length());
-		
-		if(replyTampered){	
-			response += "\n<NOTE: This comfirmation message sent from " + username + " has been tampered!>";
-		}	
-		if(messageTampered){
+
+		if (replyTampered) {
+			response += "\n<NOTE: This comfirmation message sent from " + username
+					+ " has been tampered!>";
+		}
+		if (messageTampered) {
 			response += "\n<NOTE: Your message sent to " + username + " has been tampered";
-			if(replyTampered){
+			if (replyTampered) {
 				response += " too";
 			}
 			response += "!>";
 		}
-		
-		
-		
-		
+
 		if (reader != null) {
 			reader.close();
 		}
@@ -240,13 +256,14 @@ public class Client implements IClientCli, Runnable {
 		}
 		return response;
 	}
-	
 
 	@Override
 	@Command
 	public String lookup(String username) throws IOException {
+		if (!loggedIn)
+			return "Not logged in.";
 		String input = "!lookup " + username;
-		serverWriter.println(input);
+		tcpChannel.send(input);
 		try {
 			return lookupQueue.take();
 		} catch (InterruptedException e) {
@@ -258,11 +275,13 @@ public class Client implements IClientCli, Runnable {
 	@Override
 	@Command
 	public String register(String privateAddress) throws IOException {
+		if (!loggedIn)
+			return "Not logged in.";
 		if (registered) {
 			return "Already registered and waiting for private messages.";
 		}
 		String input = "!register " + privateAddress;
-		serverWriter.println(input);
+		tcpChannel.send(input);
 		try {
 			String response = registerQueue.take();
 			if (response.startsWith("Successfully registered")) {
@@ -270,13 +289,14 @@ public class Client implements IClientCli, Runnable {
 				String[] ipPort = privateAddress.split("\\s");
 				privateServer = new ServerSocket(Integer.parseInt(ipPort[1]));
 				registered = true;
-				TCPPrivateMessageListener tcpPMListener = new TCPPrivateMessageListener(privateServer, username, userResponseStream, hmacKey);
+				TCPPrivateMessageListener tcpPMListener = new TCPPrivateMessageListener(
+						privateServer, username, userResponseStream, hmacKey);
 				pool.execute(tcpPMListener);
 			}
 			return response;
 		} catch (BindException e) {
 			String errorInput = "!register";
-			serverWriter.println(errorInput);
+			tcpChannel.send(errorInput);
 			try {
 				registerQueue.take();
 				return "Port already in use.";
@@ -304,7 +324,7 @@ public class Client implements IClientCli, Runnable {
 		if (loggedIn || registered) {
 			logout();
 		}
-		serverWriter.println("!exit");
+		tcpChannel.send("!exit");
 		pool.shutdown();
 
 		if (userResponseStream != null) {
@@ -318,16 +338,16 @@ public class Client implements IClientCli, Runnable {
 			shell.close();
 		}
 
-		if (serverReader != null) {
-			serverReader.close();
+		if (rsaChannel != null) {
+			rsaChannel.close();
 		}
-		if (serverWriter != null) {
-			serverWriter.close();
+		if (aesChannel != null) {
+			aesChannel.close();
+		}
+		if (tcpChannel != null) {
+			tcpChannel.close();
 		}
 
-		if (socket != null && !socket.isClosed()) {
-			socket.close();
-		}
 		try {
 			if (!pool.awaitTermination(2, TimeUnit.SECONDS)) {
 				pool.shutdownNow(); // Cancel currently executing tasks
@@ -356,9 +376,66 @@ public class Client implements IClientCli, Runnable {
 	// implement them for the first submission. ---
 
 	@Override
+	@Command
 	public String authenticate(String username) throws IOException {
-		// TODO Auto-generated method stub
-		return null;
+		try {
+			if (loggedIn)
+				return "Already logged in.";
+
+			// import private and public keys for communication
+			String clientPrivateKeyPath = config.getString("keys.dir") + "/" + username + ".pem";
+			PrivateKey clientPrivateKey = Keys.readPrivatePEM(new File(clientPrivateKeyPath));
+			tcpChannel.setOwnKey(clientPrivateKey);
+
+			String chatserverPublicKeyPath = config.getString("chatserver.key");
+			PublicKey chatserverPublicKey = Keys.readPublicPEM(new File(chatserverPublicKeyPath));
+			tcpChannel.setOppositeKey(chatserverPublicKey);
+
+			//////////////////////////////////////////////////////////////////////////////////////////////
+
+			String input = "!authenticate " + username;
+
+			// generates 32 byte secure random clientChallenge
+			SecureRandom secureRandom = new SecureRandom();
+			final byte[] clientChallenge = new byte[32];
+			secureRandom.nextBytes(clientChallenge);
+
+			// encode clientChallenge and send
+			byte[] encodedClientChallenge = Base64.encode(clientChallenge);
+			input += " " + new String(encodedClientChallenge);
+			//System.out.println("input with encodedchallenge: " + input);
+			tcpChannel.send(input);
+
+			//////////////////////////////////////////////////////////////////////////////////////////////
+
+			String secondMessageResponse = new String(tcpChannel.recv());
+			if (secondMessageResponse.startsWith("!ok")) {
+				String[] secondMessageParts = secondMessageResponse.split("\\s");
+				String clientChallengeFromServer = secondMessageParts[1];
+				if (!new String(encodedClientChallenge).equals(clientChallengeFromServer)) {
+					return "Client-challenges do not match. Stopping Handshake.";
+				}
+				String encodedChatserverChallenge = secondMessageParts[2];
+				byte[] decodedSecretKeyString = Base64.decode(secondMessageParts[3].getBytes());
+				byte[] decodedIvParameter = Base64.decode(secondMessageParts[4].getBytes());
+
+				// AES channel
+				aesChannel = new AESChannel(tcpChannel.getDecoratedChannel(), decodedIvParameter,
+						decodedSecretKeyString);
+				tcpChannel = aesChannel;
+				tcpChannel.send(encodedChatserverChallenge);
+				tcpReader = new TCPResponseReader(tcpChannel, userResponseStream, loginQueue,
+						logoutQueue, registerQueue, lookupQueue, lastMsg);
+				pool.execute(tcpReader);
+				//System.out.println("serverch: " + encodedChatserverChallenge);
+				this.username = username;
+				this.loggedIn = true;
+				return "Successfully logged in.";
+			}
+		} catch (FileNotFoundException e) {
+			return "There exists no private key for the specified user.";
+		}
+		return "Authentication error.";
 	}
 
 }

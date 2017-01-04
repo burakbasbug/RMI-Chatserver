@@ -2,15 +2,22 @@ package crypto;
 
 import java.io.File;
 import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.Mac;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.bouncycastle.util.encoders.Base64;
 
@@ -142,7 +149,52 @@ public class Cryptography {
 		return MessageDigest.isEqual(computedHash, receivedHash);
 	}
 	
-	
+	public static byte[] cryptoAES(int encryptMode, byte[] ivParameter, byte[] secretKeyInBytes,
+			byte[] toCrypt) {
+
+		try {
+			IvParameterSpec ivParameterSpec = new IvParameterSpec(ivParameter);
+			SecretKey secretKey = new SecretKeySpec(secretKeyInBytes, 0, secretKeyInBytes.length,
+					"AES");
+			Cipher AEScipher = Cipher.getInstance("AES/CTR/NoPadding");
+
+			AEScipher.init(encryptMode, secretKey, ivParameterSpec);
+			return AEScipher.doFinal(toCrypt);
+		} catch (InvalidKeyException e) {
+			System.err.println(e.getMessage());
+		} catch (InvalidAlgorithmParameterException e) {
+			System.err.println(e.getMessage());
+		} catch (IllegalBlockSizeException e) {
+			System.err.println(e.getMessage());
+		} catch (BadPaddingException e) {
+			System.err.println(e.getMessage());
+		} catch (NoSuchAlgorithmException e) {
+			System.err.println(e.getMessage());
+		} catch (NoSuchPaddingException e) {
+			System.err.println(e.getMessage());
+		}
+		return null;
+	}
+
+	public static byte[] cryptoRSA(int encryptMode, Key key, byte[] toCrypt) {
+
+		try {
+			Cipher RSAcipher = Cipher.getInstance("RSA/NONE/OAEPWithSHA256AndMGF1Padding");
+			RSAcipher.init(encryptMode, key);
+			return RSAcipher.doFinal(toCrypt);
+		} catch (InvalidKeyException e) {
+			System.err.println(e.getMessage());
+		} catch (IllegalBlockSizeException e) {
+			System.err.println(e.getMessage());
+		} catch (BadPaddingException e) {
+			System.err.println(e.getMessage());
+		} catch (NoSuchAlgorithmException e) {
+			System.err.println(e.getMessage());
+		} catch (NoSuchPaddingException e) {
+			System.err.println(e.getMessage());
+		}
+		return null;
+	}
 	
 	/**
 	//just for testing, please do not remove
