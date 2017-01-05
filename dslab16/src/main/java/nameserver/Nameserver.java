@@ -5,23 +5,22 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.rmi.AlreadyBoundException;
 import java.rmi.NoSuchObjectException;
+import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.MissingResourceException;
-import java.util.SortedSet;
+import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import cli.Command;
 import cli.Shell;
-import model.User;
+import nameserver.exceptions.AlreadyRegisteredException;
+import nameserver.exceptions.InvalidDomainException;
 import util.Config;
 
 public class Nameserver implements INameserverCli, Runnable {
@@ -30,15 +29,16 @@ public class Nameserver implements INameserverCli, Runnable {
 	private Config config;
 	private InputStream userRequestStream;
 	private PrintStream userResponseStream;
-
 	private Shell shell;
 	private ExecutorService pool;
-	private SortedSet<Nameserver> subNameservers;
-	private Map<String, String> userAddressMap;
 	private Registry registry;	
-	private INameserver ns;
-	private boolean isRoot = false;
-	
+	private String domain;
+	private Map<String, String> userAddressMap;	
+	private SortedMap<String, INameserver> subNameservers;
+	private boolean isRoot;
+	private NameserverService nameserverService;
+	private INameserver remote;
+
 	/**
 	 * @param componentName
 	 *            the name of the component - represented in the prompt
@@ -54,69 +54,63 @@ public class Nameserver implements INameserverCli, Runnable {
 		this.config = config;
 		this.userRequestStream = userRequestStream;
 		this.userResponseStream = userResponseStream;
+		this.shell = new Shell(componentName, userRequestStream, userResponseStream);
+		this.shell.register(this);
+		this.pool = Executors.newCachedThreadPool();
+		this.userAddressMap = Collections.synchronizedSortedMap(new TreeMap<String, String>());
+		this.subNameservers = Collections.synchronizedSortedMap(new TreeMap<String, INameserver>());
 
-		//componentNames: "ns-root", "ns-at", "ns-de", "ns-vienna-at"
-		//configs: root_id, registry.host, registry.port, (managed) domain="at","de"..
-		
-		shell = new Shell(componentName, userRequestStream, userResponseStream);
-		shell.register(this);
-		pool = Executors.newCachedThreadPool();
-		subNameservers = Collections.synchronizedSortedSet(new TreeSet<Nameserver>());
-		userAddressMap = Collections.synchronizedSortedMap(new TreeMap<String, String>());
-
-		try{
-			String domain = config.getString("domain");
-		}catch (MissingResourceException e) {
-			System.out.println("Its root!");
-			isRoot=true;
+		if(config.listKeys().contains("domain")){
+			this.domain = config.getString("domain");
+		}else{
+			this.isRoot = true;
+			this.domain = config.getString("root_id");;
 		}
-		
-		
+//TODO delete 
+//componentNames: "ns-root", "ns-at", "ns-de", "ns-vienna-at"
+//configs: root_id, registry.host, registry.port, (managed) domain="at","de"..	
 	}
 
 	@Override
 	public void run() {
 		pool.execute(shell);
-		
-		
 		try {
-			System.out.println("Registering nameserver for zone \'" + domain() + "\'");
 			if(isRoot){
-				// create and export the registry instance on localhost at the specified port
-				registry = LocateRegistry.createRegistry(config.getInt("registry.port"));
-				
-				// create a remote object of ns
-				ns = new NameserverStub();
-				INameserver stub = (INameserver) UnicastRemoteObject.exportObject(ns, 0);
-				
-				// bind the obtained remote object on specified binding name in the registry
-				registry.bind(config.getString("root_id"), stub);
+				try{
+					registry = LocateRegistry.createRegistry(config.getInt("registry.port"));
+					nameserverService = new NameserverService(subNameservers);
+					remote = (INameserver) UnicastRemoteObject.exportObject(nameserverService, 0);
+					registry.bind(config.getString("root_id"), remote);
+				} catch (AlreadyBoundException e) {
+					throw new RuntimeException("Register operation failed!", e);
+				}
 			}else{
 				registry = LocateRegistry.getRegistry(config.getString("registry.host"), config.getInt("registry.port"));
-				
-				ns = new NameserverStub();
-				INameserver stub = (INameserver) UnicastRemoteObject.exportObject(ns, 0);
-				
-				registry.bind(config.getString("domain"), stub);
+				nameserverService = new NameserverService(subNameservers);
+				remote = (INameserver) UnicastRemoteObject.exportObject(nameserverService,0);
+
+				INameserver nsServericeOfRoot = (INameserver) registry.lookup(config.getString("root_id"));
+				nsServericeOfRoot.registerNameserver(config.getString("domain") , remote,  remote);
 			}
-			
+			System.out.println("\'" + domain + "\' is ready...");
 		} catch (RemoteException e) {
-			e.printStackTrace();
-		} catch (AlreadyBoundException e) {
-			// TODO throw meaningful exceptions and pass them back to the actual requester
-			e.printStackTrace();
-		}
-		
-		
+			throw new RuntimeException("Server can not be started!",e);
+		} catch (NotBoundException e) {
+			throw new RuntimeException("Lookup operation failed!", e);
+		} catch (AlreadyRegisteredException | InvalidDomainException e) {
+			throw new RuntimeException("Register operation failed!", e);
+		}		
 	}
 
 	@Override
 	@Command
 	public String nameservers() throws IOException {
 		String nss = "";
-		int c=1;
-		for(Nameserver ns : subNameservers){
-			nss += (c++) + ". " + ns.domain() + (c==subNameservers.size()?"":"\n");
+		synchronized (subNameservers) {
+			int c=1;
+			for(Map.Entry<String,INameserver> ns : subNameservers.entrySet()){
+				nss += (c) + ". " + ns.getKey() + (c++<=subNameservers.size()?"\n":"");
+			}	
 		}
 		return nss;
 	}
@@ -127,7 +121,7 @@ public class Nameserver implements INameserverCli, Runnable {
 		String as = "";
 		int c = 1;
 		for(Map.Entry<String, String> user_adress : userAddressMap.entrySet()){
-			as += (c++) + ". " + user_adress.getKey() + " " + user_adress.getValue() + (c==userAddressMap.size()?"":"\n");
+			as += (c) + ". " + user_adress.getKey() + " " + user_adress.getValue() + (c<=userAddressMap.size()?"\n":"");
 		}
 		return as;
 	}
@@ -137,23 +131,18 @@ public class Nameserver implements INameserverCli, Runnable {
 	public String exit() throws IOException {
 		pool.shutdown();
 		
-		/*if (userResponseStream != null) {
+		if (userResponseStream != null) {
 			userResponseStream.close();
 		}
 		if (userRequestStream != null) {
 			userRequestStream.close();
 		}
-		*/
-
 		if (shell != null) {
 			shell.close();
 		}
-		
-		
 		try{			
 			// unexport the previously exported remote object
-			UnicastRemoteObject.unexportObject(ns, true);
-			
+			UnicastRemoteObject.unexportObject(nameserverService, true);
 			if(isRoot){
 				// unbind the remote object so that a client can't find it anymore
 				registry.unbind(config.getString("root_id"));	
@@ -166,14 +155,6 @@ public class Nameserver implements INameserverCli, Runnable {
 		return "Exiting nameserver.";
 	}
 	
-	public String domain(){
-		if(isRoot){
-			return config.getString("root_id");
-		}else{
-			return config.getString("domain");
-		}
-	}
-
 	/**
 	 * @param args
 	 *            the first argument is the name of the {@link Nameserver}
