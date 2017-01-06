@@ -33,7 +33,7 @@ public class Nameserver implements INameserverCli, Runnable {
 	private ExecutorService pool;
 	private Registry registry;	
 	private String domain;
-	private Map<String, String> userAddressMap;	
+	private SortedMap<String, String> userAddressMap;	
 	private SortedMap<String, INameserver> subNameservers;
 	private boolean isRoot;
 	private NameserverService nameserverService;
@@ -56,7 +56,7 @@ public class Nameserver implements INameserverCli, Runnable {
 		this.userResponseStream = userResponseStream;
 		this.shell = new Shell(componentName, userRequestStream, userResponseStream);
 		this.shell.register(this);
-		this.pool = Executors.newCachedThreadPool();
+		this.pool = Executors.newCachedThreadPool();	
 		this.userAddressMap = Collections.synchronizedSortedMap(new TreeMap<String, String>());
 		this.subNameservers = Collections.synchronizedSortedMap(new TreeMap<String, INameserver>());
 
@@ -76,30 +76,32 @@ public class Nameserver implements INameserverCli, Runnable {
 		pool.execute(shell);
 		try {
 			if(isRoot){
+				registry = LocateRegistry.createRegistry(config.getInt("registry.port"));
+				nameserverService = new NameserverService(subNameservers,userAddressMap);
+				remote = (INameserver) UnicastRemoteObject.exportObject(nameserverService, 0);
 				try{
-					registry = LocateRegistry.createRegistry(config.getInt("registry.port"));
-					nameserverService = new NameserverService(subNameservers);
-					remote = (INameserver) UnicastRemoteObject.exportObject(nameserverService, 0);
 					registry.bind(config.getString("root_id"), remote);
 				} catch (AlreadyBoundException e) {
-					throw new RuntimeException("Register operation failed!", e);
+					throw new RuntimeException("Object can not be bound!", e);
 				}
 			}else{
 				registry = LocateRegistry.getRegistry(config.getString("registry.host"), config.getInt("registry.port"));
-				nameserverService = new NameserverService(subNameservers);
+				nameserverService = new NameserverService(subNameservers,userAddressMap);
 				remote = (INameserver) UnicastRemoteObject.exportObject(nameserverService,0);
-
-				INameserver nsServericeOfRoot = (INameserver) registry.lookup(config.getString("root_id"));
-				nsServericeOfRoot.registerNameserver(config.getString("domain") , remote,  remote);
+				INameserver nsServericeOfRoot;
+				try {
+					nsServericeOfRoot = (INameserver) registry.lookup(config.getString("root_id"));
+					nsServericeOfRoot.registerNameserver(config.getString("domain") , remote,  remote);
+				} catch (NotBoundException e) {
+					throw new RuntimeException("There is no object bound with this name!", e);
+				} catch (AlreadyRegisteredException | InvalidDomainException e) {
+					throw new RuntimeException("Register operation failed!", e);
+				} 
 			}
 			System.out.println("\'" + domain + "\' is ready...");
 		} catch (RemoteException e) {
-			throw new RuntimeException("Server can not be started!",e);
-		} catch (NotBoundException e) {
-			throw new RuntimeException("Lookup operation failed!", e);
-		} catch (AlreadyRegisteredException | InvalidDomainException e) {
-			throw new RuntimeException("Register operation failed!", e);
-		}		
+			throw new RuntimeException("Nameserver can not be started!",e);
+		}
 	}
 
 	@Override
