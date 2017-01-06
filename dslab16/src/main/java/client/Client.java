@@ -1,13 +1,10 @@
 package client;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.net.BindException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -216,20 +213,17 @@ public class Client implements IClientCli, Runnable {
 		}
 		address = address.replace(':', ' ');
 		String[] ipPort = address.split("\\s");
-		Socket socket = new Socket(InetAddress.getByName(ipPort[0]), Integer.parseInt(ipPort[1]));
-		BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-		PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
+		TCPChannel channel = new TCPChannel(new Socket(InetAddress.getByName(ipPort[0]), Integer.parseInt(ipPort[1])));
 
 		message = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256,
 				"!msg " + this.username + ": " + message);
 
-		writer.println(message);
+		channel.send(message);
 
-		String response = reader.readLine();
+		String response = channel.recvStr();
 
 		boolean messageTampered = response.contains("!tampered");
-		boolean replyTampered = !Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256,
-				response, true);
+		boolean replyTampered = !Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256, response, true);
 
 		response = response.substring(response.indexOf(" ") + 1, response.length());
 
@@ -245,14 +239,8 @@ public class Client implements IClientCli, Runnable {
 			response += "!>";
 		}
 
-		if (reader != null) {
-			reader.close();
-		}
-		if (writer != null) {
-			writer.close();
-		}
-		if (socket != null && !socket.isClosed()) {
-			socket.close();
+		if(channel!=null){
+			channel.close();
 		}
 		return response;
 	}
