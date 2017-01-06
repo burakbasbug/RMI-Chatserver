@@ -53,11 +53,12 @@ public class TCPChannel implements Channel {
 	}
 
 	@Override
-	public byte[] recv() throws SocketException, IOException {
+	public byte[] recvByte() throws SocketException, IOException {
 		return reader.readLine().getBytes();
 	}
 	
-	public String recvStr() throws SocketException, IOException {
+	@Override
+	public String recvString() throws SocketException, IOException {
 		return reader.readLine();
 	}
 
@@ -84,5 +85,4 @@ public class TCPChannel implements Channel {
 	public Channel getDecoratedChannel() {
 		return null;
 	}
-
 }

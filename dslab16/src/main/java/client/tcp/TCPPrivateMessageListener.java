@@ -6,6 +6,8 @@ import java.net.ServerSocket;
 import java.net.SocketException;
 import java.security.Key;
 
+import channels.Channel;
+import channels.PrivateChannel;
 import channels.TCPChannel;
 import crypto.Cryptography;
 import crypto.Cryptography.HMAC_ALGORITHM;
@@ -16,7 +18,7 @@ public class TCPPrivateMessageListener extends Thread {
 	private String username;
 	private PrintStream userResponseStream;
 	private Key hmacKey;
-    private TCPChannel channel;
+    private Channel channel;
 
 	public TCPPrivateMessageListener(ServerSocket serverSocket, String username, PrintStream userResponseStream, Key hmacKey) {
 		this.serverSocket = serverSocket;
@@ -34,24 +36,24 @@ public class TCPPrivateMessageListener extends Thread {
 					break;
 				}
 				
-				channel = new TCPChannel(serverSocket.accept());
+				channel = new PrivateChannel(new TCPChannel(serverSocket.accept()), hmacKey);
 				
-				String privateMsg = channel.recvStr();
+				String privateMsg = channel.recvString();
 				String reply = null;
 
 				if(Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256, privateMsg, true)){
 					privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
 					privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
-					reply = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256, username + " replied with !ack.");
+					reply = username + " replied with !ack.";
 				}else{
 					privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
 					privateMsg = privateMsg.substring(privateMsg.indexOf(" ") + 1, privateMsg.length());
-					reply = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256, "!tampered " + privateMsg);
+					reply = "!tampered " + privateMsg;
 					privateMsg += "\n<NOTE: This message has been tampered!>";
 				}
 				
-				userResponseStream.println(privateMsg);
 				channel.send(reply);
+				userResponseStream.println(privateMsg);
 				
 			} catch (SocketException e) {
 				try {

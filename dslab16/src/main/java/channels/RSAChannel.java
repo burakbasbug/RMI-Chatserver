@@ -39,10 +39,15 @@ public class RSAChannel extends Base64Channel {
 	}
 
 	@Override
-	public byte[] recv() throws SocketException, IOException {
+	public byte[] recvByte() throws SocketException, IOException {
 		//System.out.println("rsa recv");
-		byte[] decoded = Base64.decode(decoratedChannel.recv());
+		byte[] decoded = Base64.decode(decoratedChannel.recvByte());
 		byte[] decrypted = Cryptography.cryptoRSA(Cipher.DECRYPT_MODE, ownKey, decoded);
 		return decrypted;
+	}
+
+	@Override
+	public String recvString() throws SocketException, IOException {
+		return null;
 	}
 }

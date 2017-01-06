@@ -26,6 +26,7 @@ import org.bouncycastle.util.encoders.Base64;
 
 import channels.AESChannel;
 import channels.Channel;
+import channels.PrivateChannel;
 import channels.RSAChannel;
 import channels.TCPChannel;
 import cli.Command;
@@ -213,14 +214,11 @@ public class Client implements IClientCli, Runnable {
 		}
 		address = address.replace(':', ' ');
 		String[] ipPort = address.split("\\s");
-		TCPChannel channel = new TCPChannel(new Socket(InetAddress.getByName(ipPort[0]), Integer.parseInt(ipPort[1])));
+		Channel channel = new PrivateChannel(new TCPChannel(new Socket(InetAddress.getByName(ipPort[0]), Integer.parseInt(ipPort[1]))), hmacKey);
 
-		message = Cryptography.genMessageWithHMac(hmacKey, HMAC_ALGORITHM.HmacSHA256,
-				"!msg " + this.username + ": " + message);
+		channel.send("!msg " + this.username + ": " + message);
 
-		channel.send(message);
-
-		String response = channel.recvStr();
+		String response = channel.recvString();
 
 		boolean messageTampered = response.contains("!tampered");
 		boolean replyTampered = !Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256, response, true);
@@ -396,7 +394,7 @@ public class Client implements IClientCli, Runnable {
 
 			//////////////////////////////////////////////////////////////////////////////////////////////
 
-			String secondMessageResponse = new String(tcpChannel.recv());
+			String secondMessageResponse = new String(tcpChannel.recvByte());
 			if (secondMessageResponse.startsWith("!ok")) {
 				String[] secondMessageParts = secondMessageResponse.split("\\s");
 				String clientChallengeFromServer = secondMessageParts[1];

@@ -31,8 +31,8 @@ public abstract class Base64Channel implements Channel {
 	}
 
 	@Override
-	public byte[] recv() throws SocketException, IOException {
-		return Base64.decode(decoratedChannel.recv());
+	public byte[] recvByte() throws SocketException, IOException {
+		return Base64.decode(decoratedChannel.recvByte());
 	}
 
 	@Override

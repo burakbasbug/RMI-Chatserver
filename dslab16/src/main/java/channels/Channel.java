@@ -13,7 +13,9 @@ public interface Channel {
 
 	public void send(String msg);
 
-	public byte[] recv() throws SocketException, IOException;
+	public byte[] recvByte() throws SocketException, IOException;
+	
+	public String recvString() throws SocketException, IOException;
 
 	public void close() throws IOException;
 	

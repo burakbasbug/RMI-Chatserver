@@ -33,7 +33,7 @@ public class TCPResponseReader extends Thread {
 	public void run() {
 		try {
 			String response;
-			while ((response = new String(tcpChannel.recv())) != null) {
+			while ((response = new String(tcpChannel.recvByte())) != null) {
 				//System.out.println("tcpresponsereader while: " + tcpChannel.getClass());
 				if (Thread.currentThread().isInterrupted()) {
 					break;

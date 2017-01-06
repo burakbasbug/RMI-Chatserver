@@ -61,7 +61,7 @@ public class TCPConnection extends Thread {
 		try {
 			String request;
 			while (!tcpChannel.getSocket().isClosed()
-					&& (request = new String(tcpChannel.recv())) != null) {
+					&& (request = new String(tcpChannel.recvByte())) != null) {
 				// System.out.println("tcpconnection while: " +
 				// tcpChannel.getClass());
 				if (request.startsWith("!login")) {
@@ -218,7 +218,7 @@ public class TCPConnection extends Thread {
 			aesChannel = new AESChannel(tcpChannel.getDecoratedChannel(), ivParameter,
 					secretKey.getEncoded());
 			tcpChannel = aesChannel;
-			byte[] thirdMessage = tcpChannel.recv();
+			byte[] thirdMessage = tcpChannel.recvByte();
 
 			// check server challenges
 			// System.out.println("decryptedThirdMessage: " + new

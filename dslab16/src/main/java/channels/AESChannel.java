@@ -28,12 +28,17 @@ public class AESChannel extends Base64Channel {
 	}
 
 	@Override
-	public byte[] recv() throws SocketException, IOException {
+	public byte[] recvByte() throws SocketException, IOException {
 		//System.out.println("aes recv");
-		byte[] decoded = Base64.decode(decoratedChannel.recv());
+		byte[] decoded = Base64.decode(decoratedChannel.recvByte());
 		byte[] decrypted = Cryptography.cryptoAES(Cipher.DECRYPT_MODE, ivParameter,
 				secretKeyInBytes, decoded);
 		return decrypted;
+	}
+
+	@Override
+	public String recvString() throws SocketException, IOException {
+		return null;
 	}
 
 }
