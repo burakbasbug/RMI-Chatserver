@@ -56,6 +56,10 @@ public class TCPChannel implements Channel {
 	public byte[] recv() throws SocketException, IOException {
 		return reader.readLine().getBytes();
 	}
+	
+	public String recvStr() throws SocketException, IOException {
+		return reader.readLine();
+	}
 
 	@Override
 	public void close() throws IOException {
