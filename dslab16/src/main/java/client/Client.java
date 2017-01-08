@@ -213,7 +213,7 @@ public class Client implements IClientCli, Runnable {
 			return "Wrong username or user not reachable.";
 		}
 		address = address.replace(':', ' ');
-		String[] ipPort = address.split("\\s");
+		String[] ipPort = address.split("\\s");		
 		Channel channel = new PrivateChannel(new TCPChannel(new Socket(InetAddress.getByName(ipPort[0]), Integer.parseInt(ipPort[1]))), hmacKey);
 
 		channel.send("!msg " + this.username + ": " + message);

@@ -93,9 +93,9 @@ public class Nameserver implements INameserverCli, Runnable {
 					nsServericeOfRoot = (INameserver) registry.lookup(config.getString("root_id"));
 					nsServericeOfRoot.registerNameserver(config.getString("domain") , remote,  remote);
 				} catch (NotBoundException e) {
-					throw new RuntimeException("There is no object bound with this name!", e);
+					throw new RuntimeException("Registry has no associated binding with this name!");
 				} catch (AlreadyRegisteredException | InvalidDomainException e) {
-					throw new RuntimeException("Register operation failed!", e);
+					throw new RuntimeException("Register operation failed: " + e.getMessage());
 				} 
 			}
 			System.out.println("\'" + domain + "\' is ready...");

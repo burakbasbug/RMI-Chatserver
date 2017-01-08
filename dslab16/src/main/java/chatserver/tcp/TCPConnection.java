@@ -4,6 +4,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -14,9 +19,14 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import org.bouncycastle.util.encoders.Base64;
 
+import com.sun.jmx.snmp.UserAcl;
+
 import channels.AESChannel;
 import channels.Channel;
 import model.User;
+import nameserver.INameserverForChatserver;
+import nameserver.exceptions.AlreadyRegisteredException;
+import nameserver.exceptions.InvalidDomainException;
 import util.Config;
 import util.Keys;
 
@@ -31,6 +41,7 @@ public class TCPConnection extends Thread {
 	private String ipPort;
 	private Config config;
 	private PrintStream userResponseStream;
+	private INameserverForChatserver nameserver;
 
 	public TCPConnection(Channel tcpChannel, List<TCPConnection> allConnections,
 			Map<String, User> userMap, PrintStream userResponseStream) {
@@ -42,6 +53,7 @@ public class TCPConnection extends Thread {
 		this.user = null;
 		this.ipPort = null;
 		this.config = new Config("chatserver");
+		this.nameserver = null;
 	}
 
 	public Channel getTcpChannel() {
@@ -156,28 +168,51 @@ public class TCPConnection extends Thread {
 			this.ipPort = null;
 			return "!register" + "No <IP:port> specified";
 		}
-		this.ipPort = ipPort.substring(10);
+		
+		try {
+			Registry reg = LocateRegistry.getRegistry(config.getString("registry.host"),config.getInt("registry.port"));
+			this.nameserver = (INameserverForChatserver) reg.lookup(config.getString("root_id"));
+			this.ipPort = ipPort.substring(10);
+			this.nameserver.registerUser(user.getName(), this.ipPort);
+		} catch (RemoteException | NotBoundException | AlreadyRegisteredException | InvalidDomainException e) {
+			this.ipPort = null;
+			return "!register" + "Registration failed: " + e.getMessage();
+		}
 		return "!register" + "Successfully registered address for " + user.getName() + ".";
 	}
 
 	public String lookup(String request) {
 		if (user == null) {
 			return "!lookup" + "Not logged in. -OR- Wrong username or user not registered.";
+		}else if(nameserver == null){
+			return "!lookup" + "User is not registered.";
 		}
-		String lookupUsername = request.substring(8);
-		synchronized (allConnections) {
-			for (TCPConnection conn : allConnections) {
-				if (conn.getUser() != null) {
-					if (conn.getUser().getName().equals(lookupUsername)) {
-						if (conn.getIpPort() != null) {
-							return "!lookup" + conn.getIpPort();
-						}
-					}
+			
+		String addr = "";
+		try {
+			String username = request.substring(8);
+			int lastIndex = username.lastIndexOf(".");
+			INameserverForChatserver ns = this.nameserver;
+			while(lastIndex!=-1){
+				String zone = username.substring(lastIndex+1);
+				username = username.substring(0,lastIndex);
+				ns = ns.getNameserver(zone);			
+				if(ns==null){
+					throw new InvalidDomainException("Zone \'" + zone + "\' does not exist!");
+				}else{
+					lastIndex = username.lastIndexOf(".");
 				}
-
 			}
+			addr = ns.lookup(username);
+		} catch (RemoteException | InvalidDomainException e) {
+			return "!lookup" + "Error: " + e.getMessage();
 		}
-		return "!lookup" + "Wrong username or user not registered.";
+		
+		if(addr==null){			
+			return "!lookup" + "Wrong username or user not registered.";
+		}else{
+			return "!lookup" + addr;
+		}
 	}
 
 	private void authenticate(String firstMessage) {
