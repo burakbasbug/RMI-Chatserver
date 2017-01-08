@@ -18,9 +18,6 @@ import java.util.Map;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import org.bouncycastle.util.encoders.Base64;
-
-import com.sun.jmx.snmp.UserAcl;
-
 import channels.AESChannel;
 import channels.Channel;
 import model.User;

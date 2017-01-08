@@ -49,7 +49,7 @@ public class NameserverService implements INameserver, Serializable{
 				subNs = subNameservers.get(parentZone);
 			}
 			if(subNs==null){
-				throw new InvalidDomainException("An intermediary zone does not exist!");
+				throw new InvalidDomainException("An intermediary zone \'" + parentZone +"\' does not exist!");
 			}
 			subNs.registerUser(username, address);
 		}
