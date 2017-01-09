@@ -64,11 +64,8 @@ public class Nameserver implements INameserverCli, Runnable {
 			this.domain = config.getString("domain");
 		}else{
 			this.isRoot = true;
-			this.domain = config.getString("root_id");;
+			this.domain = config.getString("root_id");
 		}
-//TODO delete 
-//componentNames: "ns-root", "ns-at", "ns-de", "ns-vienna-at"
-//configs: root_id, registry.host, registry.port, (managed) domain="at","de"..	
 	}
 
 	@Override
@@ -82,7 +79,8 @@ public class Nameserver implements INameserverCli, Runnable {
 				try{
 					registry.bind(config.getString("root_id"), remote);
 				} catch (AlreadyBoundException e) {
-					throw new RuntimeException("Object can not be bound!", e);
+					System.err.println("Object can not be bound! " + e.getMessage());
+					try {this.exit();} catch (IOException e1) {}
 				}
 			}else{
 				registry = LocateRegistry.getRegistry(config.getString("registry.host"), config.getInt("registry.port"));
@@ -93,14 +91,16 @@ public class Nameserver implements INameserverCli, Runnable {
 					nsServericeOfRoot = (INameserver) registry.lookup(config.getString("root_id"));
 					nsServericeOfRoot.registerNameserver(config.getString("domain") , remote,  remote);
 				} catch (NotBoundException e) {
-					throw new RuntimeException("Registry has no associated binding with this name!");
+					System.err.println("Registry has no associated binding with this name!");
+					try {this.exit();} catch (IOException e1) {}
 				} catch (AlreadyRegisteredException | InvalidDomainException e) {
-					throw new RuntimeException("Register operation failed: " + e.getMessage());
+					System.err.println("Register operation failed: " + e.getMessage());
+					try {this.exit();} catch (IOException e1) {}
 				} 
 			}
 			System.out.println("\'" + domain + "\' is ready...");
 		} catch (RemoteException e) {
-			throw new RuntimeException("Nameserver can not be started!",e);
+			System.err.println("Nameserver can not be started! " + e.getMessage());
 		}
 	}
 

@@ -179,7 +179,7 @@ public class TCPConnection extends Thread {
 	}
 
 	public String lookup(String request) {
-		if (user == null) {
+		if (user == null || ipPort == null) {
 			return "!lookup" + "Not logged in. -OR- Wrong username or user not registered.";
 		}else if(nameserver == null){
 			return "!lookup" + "User is not registered.";
