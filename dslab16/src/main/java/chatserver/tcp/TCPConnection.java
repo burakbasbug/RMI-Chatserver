@@ -65,6 +65,10 @@ public class TCPConnection extends Thread {
 		return ipPort;
 	}
 
+	public INameserverForChatserver getNameserver() {
+		return nameserver;
+	}
+
 	@Override
 	public void run() {
 		try {
@@ -189,7 +193,19 @@ public class TCPConnection extends Thread {
 		try {
 			String username = request.substring(8);
 			int lastIndex = username.lastIndexOf(".");
-			INameserverForChatserver ns = this.nameserver;
+			INameserverForChatserver ns = null;
+			synchronized (allConnections) {
+				for (TCPConnection conn : allConnections) {
+					if (conn.getUser() != null) {
+						if (conn.getUser().getName().equals(username)) {
+							if (conn.getIpPort() == null) {
+								return "!lookup" + "Wrong username or user not registered.";
+							}
+							ns = conn.getNameserver();
+						}
+					}
+				}
+			}
 			while (lastIndex != -1) {
 				String zone = username.substring(lastIndex + 1);
 				username = username.substring(0, lastIndex);
@@ -204,7 +220,6 @@ public class TCPConnection extends Thread {
 		} catch (RemoteException | InvalidDomainException e) {
 			return "!lookup" + "Error: " + e.getMessage();
 		}
-
 		if (addr == null) {
 			return "!lookup" + "Wrong username or user not registered.";
 		} else {

@@ -1,7 +1,5 @@
 package crypto;
 
-import java.io.File;
-import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -20,9 +18,6 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.bouncycastle.util.encoders.Base64;
-
-import crypto.Cryptography.HMAC_ALGORITHM;
-import util.Keys;
 
 
 public class Cryptography {
