@@ -79,8 +79,7 @@ public class Nameserver implements INameserverCli, Runnable {
 				try{
 					registry.bind(config.getString("root_id"), remote);
 				} catch (AlreadyBoundException e) {
-					System.err.println("Object can not be bound! " + e.getMessage());
-					try {this.exit();} catch (IOException e1) {}
+					printAndExit("Object can not be bound! " + e.getMessage());
 				}
 			}else{
 				registry = LocateRegistry.getRegistry(config.getString("registry.host"), config.getInt("registry.port"));
@@ -91,16 +90,14 @@ public class Nameserver implements INameserverCli, Runnable {
 					nsServericeOfRoot = (INameserver) registry.lookup(config.getString("root_id"));
 					nsServericeOfRoot.registerNameserver(config.getString("domain") , remote,  remote);
 				} catch (NotBoundException e) {
-					System.err.println("Registry has no associated binding with this name!");
-					try {this.exit();} catch (IOException e1) {}
+					printAndExit("Registry has no associated binding with this name!");
 				} catch (AlreadyRegisteredException | InvalidDomainException e) {
-					System.err.println("Register operation failed: " + e.getMessage());
-					try {this.exit();} catch (IOException e1) {}
+					printAndExit("Register operation failed: " + e.getMessage());
 				} 
 			}
 			System.out.println("\'" + domain + "\' is ready...");
 		} catch (RemoteException e) {
-			System.err.println("Nameserver can not be started! " + e.getMessage());
+			printAndExit("Nameserver can not be started! " + e.getMessage());
 		}
 	}
 
@@ -127,10 +124,26 @@ public class Nameserver implements INameserverCli, Runnable {
 		}
 		return as;
 	}
+	
+	private void printAndExit(String msg){
+		try{
+			if(shell!=null){
+				shell.writeLine(msg);
+			}
+			this.exit();
+		}catch (IOException e) {
+			//Unimportant case. 
+		}
+	}
 
 	@Override
 	@Command
 	public String exit() throws IOException {
+		if (shell != null) {
+			shell.writeLine("Exiting nameserver");
+			shell.close();
+		}
+		
 		pool.shutdown();
 		
 		if (userResponseStream != null) {
@@ -139,21 +152,20 @@ public class Nameserver implements INameserverCli, Runnable {
 		if (userRequestStream != null) {
 			userRequestStream.close();
 		}
-		if (shell != null) {
-			shell.close();
-		}
+		
 		try{			
 			// unexport the previously exported remote object
 			UnicastRemoteObject.unexportObject(nameserverService, true);
 			if(isRoot){
 				// unbind the remote object so that a client can't find it anymore
 				registry.unbind(config.getString("root_id"));	
-			}			
+			}
 		}catch (NoSuchObjectException e) {
 			System.err.println("Error while unexporting object: " + e.getMessage());
 		}catch (Exception e) {
 			System.err.println("Error while unbinding object: " + e.getMessage());
 		}
+		
 		return "Exiting nameserver.";
 	}
 	
