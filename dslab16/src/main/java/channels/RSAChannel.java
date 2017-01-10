@@ -32,8 +32,10 @@ public class RSAChannel extends Base64Channel {
 
 	@Override
 	public void send(String msg) {
-		if (oppositeKey == null)
+		if (oppositeKey == null) {
+			System.err.println("rsa send oppsitekey null");
 			return;
+		}
 		byte[] encrypted = Cryptography.cryptoRSA(Cipher.ENCRYPT_MODE, oppositeKey, msg.getBytes());
 		decoratedChannel.send(new String(Base64.encode(encrypted)));
 	}
@@ -47,7 +49,7 @@ public class RSAChannel extends Base64Channel {
 	}
 
 	@Override
-	public String recvString() throws SocketException, IOException {
+	public String recvString() throws SocketException {
 		return null;
 	}
 }

@@ -17,7 +17,7 @@ public interface Channel {
 	
 	public String recvString() throws SocketException, IOException;
 
-	public void close() throws IOException;
+	public void close() throws SocketException;
 	
 	public void setOwnKey(Key ownKey);
 	

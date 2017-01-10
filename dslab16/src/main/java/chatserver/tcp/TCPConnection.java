@@ -1,10 +1,10 @@
 package chatserver.tcp;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.SocketException;
-import java.net.UnknownHostException;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
@@ -71,8 +71,6 @@ public class TCPConnection extends Thread {
 			String request;
 			while (!tcpChannel.getSocket().isClosed()
 					&& (request = new String(tcpChannel.recvByte())) != null) {
-				// System.out.println("tcpconnection while: " +
-				// tcpChannel.getClass());
 				if (request.startsWith("!login")) {
 					tcpChannel.send(login(request));
 				} else if (request.startsWith("!logout")) {
@@ -92,11 +90,12 @@ public class TCPConnection extends Thread {
 				}
 			}
 		} catch (SocketException e) {
-			logout();
-			exit();
+		} catch (NullPointerException e) {
 		} catch (IOException e) {
 			System.err.println("Error occurred while communicating with client: " + e.getMessage());
 		}
+		logout();
+		exit();
 	}
 
 	public String login(String request) {
@@ -134,6 +133,7 @@ public class TCPConnection extends Thread {
 		}
 		ipPort = null;
 		tcpChannel = rsaChannel;
+		aesChannel = null;
 		return "!logout" + "Successfully logged out.";
 	}
 
@@ -165,13 +165,15 @@ public class TCPConnection extends Thread {
 			this.ipPort = null;
 			return "!register" + "No <IP:port> specified";
 		}
-		
+
 		try {
-			Registry reg = LocateRegistry.getRegistry(config.getString("registry.host"),config.getInt("registry.port"));
+			Registry reg = LocateRegistry.getRegistry(config.getString("registry.host"),
+					config.getInt("registry.port"));
 			this.nameserver = (INameserverForChatserver) reg.lookup(config.getString("root_id"));
 			this.ipPort = ipPort.substring(10);
 			this.nameserver.registerUser(user.getName(), this.ipPort);
-		} catch (RemoteException | NotBoundException | AlreadyRegisteredException | InvalidDomainException e) {
+		} catch (RemoteException | NotBoundException | AlreadyRegisteredException
+				| InvalidDomainException e) {
 			this.ipPort = null;
 			return "!register" + "Registration failed: " + e.getMessage();
 		}
@@ -179,24 +181,22 @@ public class TCPConnection extends Thread {
 	}
 
 	public String lookup(String request) {
-		if (user == null || ipPort == null) {
+		if (user == null) {
 			return "!lookup" + "Not logged in. -OR- Wrong username or user not registered.";
-		}else if(nameserver == null){
-			return "!lookup" + "User is not registered.";
 		}
-			
+
 		String addr = "";
 		try {
 			String username = request.substring(8);
 			int lastIndex = username.lastIndexOf(".");
 			INameserverForChatserver ns = this.nameserver;
-			while(lastIndex!=-1){
-				String zone = username.substring(lastIndex+1);
-				username = username.substring(0,lastIndex);
-				ns = ns.getNameserver(zone);			
-				if(ns==null){
+			while (lastIndex != -1) {
+				String zone = username.substring(lastIndex + 1);
+				username = username.substring(0, lastIndex);
+				ns = ns.getNameserver(zone);
+				if (ns == null) {
 					throw new InvalidDomainException("Zone \'" + zone + "\' does not exist!");
-				}else{
+				} else {
 					lastIndex = username.lastIndexOf(".");
 				}
 			}
@@ -204,10 +204,10 @@ public class TCPConnection extends Thread {
 		} catch (RemoteException | InvalidDomainException e) {
 			return "!lookup" + "Error: " + e.getMessage();
 		}
-		
-		if(addr==null){			
+
+		if (addr == null) {
 			return "!lookup" + "Wrong username or user not registered.";
-		}else{
+		} else {
 			return "!lookup" + addr;
 		}
 	}
@@ -242,7 +242,13 @@ public class TCPConnection extends Thread {
 			// System.out.println("finishedsecondmessage: " + secondMessage);
 
 			String clientPublicKeyPath = config.getString("keys.dir") + "/" + username + ".pub.pem";
-			PublicKey clientPublicKey = Keys.readPublicPEM(new File(clientPublicKeyPath));
+			PublicKey clientPublicKey;
+			try {
+				clientPublicKey = Keys.readPublicPEM(new File(clientPublicKeyPath));
+			} catch (FileNotFoundException e) {
+				userResponseStream.println("There exists no public key for the specified user.");
+				return;
+			}
 			tcpChannel.setOppositeKey(clientPublicKey);
 			tcpChannel.send(secondMessage);
 
@@ -258,6 +264,8 @@ public class TCPConnection extends Thread {
 			if (!new String(thirdMessage).equals(new String(encodedChatserverChallenge))) {
 				userResponseStream
 						.println("Server-challenges do not match. Closing the connection.");
+				tcpChannel = rsaChannel;
+				aesChannel = null;
 				return;
 			}
 			synchronized (userMap) {
@@ -265,13 +273,20 @@ public class TCPConnection extends Thread {
 					if (!userMap.get(parts[1]).isLoggedIn()) {
 						this.user = userMap.get(parts[1]);
 						this.user.setLoggedIn(true);
-						userResponseStream.println("Client connected");
-						// return "!login" + "Successfully logged in.";
+						userResponseStream.println("Client connected successfully");
 					} else {
-						// return "!login" + "Already logged in.";
+						userResponseStream.println("User is already logged in on another client.");
+						tcpChannel = rsaChannel;
+						aesChannel = null;
+						logout();
+						exit();
 					}
 				} else {
-					// return "!login" + "Wrong username or password.";
+					userResponseStream.println("Wrong username.");
+					tcpChannel = rsaChannel;
+					aesChannel = null;
+					logout();
+					exit();
 				}
 			}
 		} catch (NoSuchAlgorithmException e) {

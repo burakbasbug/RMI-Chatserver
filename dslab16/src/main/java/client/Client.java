@@ -121,19 +121,20 @@ public class Client implements IClientCli, Runnable {
 	@Override
 	@Command
 	public String login(String username, String password) throws IOException {
-		String input = "!login " + username + " " + password;
-		tcpChannel.send(input);
-		try {
-			String response = loginQueue.take();
-			if (response.startsWith("Successfully")) {
-				this.username = username;
-				this.loggedIn = true;
-			}
-			return response;
-		} catch (InterruptedException e) {
-			System.err.println("Interrupted while waiting: " + e.getMessage());
-		}
-		return "Login error.";
+		return "Login method no longer supported.\nUse '!authenticate <username>' instead.";
+		// String input = "!login " + username + " " + password;
+		// tcpChannel.send(input);
+		// try {
+		// String response = loginQueue.take();
+		// if (response.startsWith("Successfully")) {
+		// this.username = username;
+		// this.loggedIn = true;
+		// }
+		// return response;
+		// } catch (InterruptedException e) {
+		// System.err.println("Interrupted while waiting: " + e.getMessage());
+		// }
+		// return "Login error.";
 	}
 
 	@Override
@@ -152,6 +153,7 @@ public class Client implements IClientCli, Runnable {
 			}
 			String response = logoutQueue.poll(5, TimeUnit.SECONDS);
 			tcpChannel = rsaChannel;
+			aesChannel = null;
 			return response;
 		} catch (InterruptedException e) {
 			System.err.println("Interrupted while waiting: " + e.getMessage());
@@ -213,15 +215,19 @@ public class Client implements IClientCli, Runnable {
 			return "Wrong username or user not reachable.";
 		}
 		address = address.replace(':', ' ');
-		String[] ipPort = address.split("\\s");		
-		Channel channel = new PrivateChannel(new TCPChannel(new Socket(InetAddress.getByName(ipPort[0]), Integer.parseInt(ipPort[1]))), hmacKey);
+		String[] ipPort = address.split("\\s");
+		Channel channel = new PrivateChannel(
+				new TCPChannel(
+						new Socket(InetAddress.getByName(ipPort[0]), Integer.parseInt(ipPort[1]))),
+				hmacKey);
 
 		channel.send("!msg " + this.username + ": " + message);
 
 		String response = channel.recvString();
 
 		boolean messageTampered = response.contains("!tampered");
-		boolean replyTampered = !Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256, response, true);
+		boolean replyTampered = !Cryptography.checkHMacInMessage(hmacKey, HMAC_ALGORITHM.HmacSHA256,
+				response, true);
 
 		response = response.substring(response.indexOf(" ") + 1, response.length());
 
@@ -237,7 +243,7 @@ public class Client implements IClientCli, Runnable {
 			response += "!>";
 		}
 
-		if(channel!=null){
+		if (channel != null) {
 			channel.close();
 		}
 		return response;
@@ -309,8 +315,8 @@ public class Client implements IClientCli, Runnable {
 	public String exit() throws IOException {
 		if (loggedIn || registered) {
 			logout();
+			tcpChannel.send("!exit");
 		}
-		tcpChannel.send("!exit");
 		pool.shutdown();
 
 		if (userResponseStream != null) {
@@ -389,7 +395,7 @@ public class Client implements IClientCli, Runnable {
 			// encode clientChallenge and send
 			byte[] encodedClientChallenge = Base64.encode(clientChallenge);
 			input += " " + new String(encodedClientChallenge);
-			//System.out.println("input with encodedchallenge: " + input);
+			// System.out.println("input with encodedchallenge: " + input);
 			tcpChannel.send(input);
 
 			//////////////////////////////////////////////////////////////////////////////////////////////
@@ -413,7 +419,8 @@ public class Client implements IClientCli, Runnable {
 				tcpReader = new TCPResponseReader(tcpChannel, userResponseStream, loginQueue,
 						logoutQueue, registerQueue, lookupQueue, lastMsg);
 				pool.execute(tcpReader);
-				//System.out.println("serverch: " + encodedChatserverChallenge);
+				// System.out.println("serverch: " +
+				// encodedChatserverChallenge);
 				this.username = username;
 				this.loggedIn = true;
 				return "Successfully logged in.";

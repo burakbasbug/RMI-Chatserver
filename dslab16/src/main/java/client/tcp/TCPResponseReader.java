@@ -34,7 +34,6 @@ public class TCPResponseReader extends Thread {
 		try {
 			String response;
 			while ((response = new String(tcpChannel.recvByte())) != null) {
-				//System.out.println("tcpresponsereader while: " + tcpChannel.getClass());
 				if (Thread.currentThread().isInterrupted()) {
 					break;
 				}
@@ -63,9 +62,8 @@ public class TCPResponseReader extends Thread {
 			System.err.println("Error occurred while communicating with server: " + e.getMessage());
 		} catch (InterruptedException e) {
 			System.err.println("Interrupted while waiting: " + e.getMessage());
-		} /*
-			 * catch (NullPointerException e) {
-			 * System.out.println("responsereader closed"); return; }
-			 */
+		} catch (NullPointerException e) {
+			System.err.println("Server has been closed");
+		}
 	}
 }

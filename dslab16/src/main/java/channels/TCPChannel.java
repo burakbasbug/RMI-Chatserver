@@ -63,15 +63,23 @@ public class TCPChannel implements Channel {
 	}
 
 	@Override
-	public void close() throws IOException {
+	public void close() throws SocketException {
+		if (socket != null && !socket.isClosed()) {
+			try {
+				socket.close();
+			} catch (IOException e) {
+				throw new SocketException();
+			}
+		}
 		if (reader != null) {
-			reader.close();
+			try {
+				reader.close();
+			} catch (IOException e) {
+				System.err.println(e.getMessage());
+			}
 		}
 		if (writer != null) {
 			writer.close();
-		}
-		if (socket != null && !socket.isClosed()) {
-			socket.close();
 		}
 	}
 	

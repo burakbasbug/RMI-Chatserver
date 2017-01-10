@@ -44,7 +44,7 @@ public class PrivateChannel implements Channel{
 	}
 
 	@Override
-	public void close() throws IOException {
+	public void close() throws SocketException {
 		decoratedChannel.close();
 		
 	}

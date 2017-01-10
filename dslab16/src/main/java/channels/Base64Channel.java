@@ -36,7 +36,7 @@ public abstract class Base64Channel implements Channel {
 	}
 
 	@Override
-	public void close() throws IOException {
+	public void close() throws SocketException {
 		decoratedChannel.close();
 	}
 

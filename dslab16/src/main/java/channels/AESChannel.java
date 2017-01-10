@@ -37,7 +37,7 @@ public class AESChannel extends Base64Channel {
 	}
 
 	@Override
-	public String recvString() throws SocketException, IOException {
+	public String recvString() throws SocketException {
 		return null;
 	}
 
