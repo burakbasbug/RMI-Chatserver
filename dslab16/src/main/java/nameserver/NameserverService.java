@@ -2,14 +2,7 @@ package nameserver;
 
 import java.io.Serializable;
 import java.rmi.RemoteException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.SortedMap;
-import java.util.TreeMap;
-
 import nameserver.exceptions.AlreadyRegisteredException;
 import nameserver.exceptions.InvalidDomainException;
 
@@ -29,11 +22,13 @@ public class NameserverService implements INameserver, Serializable{
 	public void registerUser(String username, String address)
 			throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
 		System.out.println("Register request for user \'" + username + "\' with \'" + address + "\'.");
+		/*
 		synchronized (userAddressMap) {
 			if(userAddressMap.containsKey(username)){
 				throw new AlreadyRegisteredException("User is already registered!");
 			}
 		}
+		*/
 		int lastIndex = username.lastIndexOf(".");
 		if(lastIndex==-1){ //no "." in user name
 			synchronized (userAddressMap) {

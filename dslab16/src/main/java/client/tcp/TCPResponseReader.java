@@ -63,7 +63,7 @@ public class TCPResponseReader extends Thread {
 		} catch (InterruptedException e) {
 			System.err.println("Interrupted while waiting: " + e.getMessage());
 		} catch (NullPointerException e) {
-			System.err.println("Server has been closed");
+			userResponseStream.println("Connection has been closed. Use '!exit'.");
 		}
 	}
 }

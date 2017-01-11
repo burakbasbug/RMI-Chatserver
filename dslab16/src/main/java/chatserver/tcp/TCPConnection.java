@@ -136,6 +136,7 @@ public class TCPConnection extends Thread {
 			user = null;
 		}
 		ipPort = null;
+		nameserver = null;
 		tcpChannel = rsaChannel;
 		aesChannel = null;
 		return "!logout" + "Successfully logged out.";
@@ -165,6 +166,9 @@ public class TCPConnection extends Thread {
 		if (user == null) {
 			return "!register" + "Not logged in.";
 		}
+		if (this.ipPort != null || this.nameserver != null) {
+			return "!register" + "Already registered and waiting for private messages.";
+		}
 		if (ipPort.length() == 9) {
 			this.ipPort = null;
 			return "!register" + "No <IP:port> specified";
@@ -176,10 +180,10 @@ public class TCPConnection extends Thread {
 			this.nameserver = (INameserverForChatserver) reg.lookup(config.getString("root_id"));
 			this.ipPort = ipPort.substring(10);
 			this.nameserver.registerUser(user.getName(), this.ipPort);
-		} catch (RemoteException | NotBoundException | AlreadyRegisteredException
-				| InvalidDomainException e) {
+		} catch (RemoteException | NotBoundException | InvalidDomainException e) {
 			this.ipPort = null;
 			return "!register" + "Registration failed: " + e.getMessage();
+		} catch (AlreadyRegisteredException e) {
 		}
 		return "!register" + "Successfully registered address for " + user.getName() + ".";
 	}
@@ -198,13 +202,16 @@ public class TCPConnection extends Thread {
 				for (TCPConnection conn : allConnections) {
 					if (conn.getUser() != null) {
 						if (conn.getUser().getName().equals(username)) {
-							if (conn.getIpPort() == null) {
+							if (conn.getNameserver() == null || conn.getIpPort() == null) {
 								return "!lookup" + "Wrong username or user not registered.";
 							}
 							ns = conn.getNameserver();
 						}
 					}
 				}
+			}
+			if (ns == null) {
+				return "!lookup" + "Wrong username or user not registered.";
 			}
 			while (lastIndex != -1) {
 				String zone = username.substring(lastIndex + 1);
@@ -278,9 +285,11 @@ public class TCPConnection extends Thread {
 			// String(thirdMessage));
 			if (!new String(thirdMessage).equals(new String(encodedChatserverChallenge))) {
 				userResponseStream
-						.println("Server-challenges do not match. Closing the connection.");
+						.println("Server-challenges do not match. Closing the TCP connection.");
 				tcpChannel = rsaChannel;
 				aesChannel = null;
+				logout();
+				exit();
 				return;
 			}
 			synchronized (userMap) {
@@ -290,7 +299,8 @@ public class TCPConnection extends Thread {
 						this.user.setLoggedIn(true);
 						userResponseStream.println("Client connected successfully");
 					} else {
-						userResponseStream.println("User is already logged in on another client.");
+						userResponseStream.println(
+								"User is already logged in on another client. Closing the TCP connection.");
 						tcpChannel = rsaChannel;
 						aesChannel = null;
 						logout();
