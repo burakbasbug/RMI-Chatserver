@@ -1,27 +1,11 @@
 Reflect about your solution!
-
-
 Summary:
 
+All commands work as they are supposed to. We tested our solution intensively and fixed any bugs detected.
 
-Additional classes:
-
-TCPListener - ServerSocket listens for incoming TCP connections
-TCPConnection - Represents each client TCP connection
-
-UDPListener - DatagramSocket listens for incoming UDP packets
-UDPPacketTransfer - Represents each incoming DatagramPacket
-
-TCPResponseReader - Read responses from the chatserver
-TCPPrivateMessageListener - Listens for incoming TCP connections from other clients, 
-reads private messages and automatically replies with an acknowledgement
-
-UDPResponseReader - Read the chatserver's UDP responses
-
-User (Model)
-
-All necessary commands are implemented; server and client functionalities are tested manually 
-and with automated tests which are not included in the project. User commands are handled by the provided Shell class.
-- Threading strategy: Thread pools (implementations of java.util.concurrent.ExecutorService)
-- Synchronization with thread-safe list and map implementations and synchronized lock objects
-- BlockingQueues to handle server responses
+Important additional classes: all classes of the channels package (they encapsulate a socket with the reader and writer)
+			      the Cryptography class (encapsulates static methods to generate hashes, keys, secure randoms and other stuff)
+			      
+Stage1: The nameservers get registrated as they should and they propagate the messages top down.
+Stage2: The authenticate method works nicely and uses a secure channel. The password is no more needed.
+Stage3: The msg method hashes the message, so that the receiving client can test if the message was changed.
